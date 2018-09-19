@@ -5,12 +5,5 @@ num_compute_threads: 6
 worker_memory: 10g
 driver_memory: 8g
 max_result_size: 5g
-
 output_active: yes
-
-#log_level: debug
-
 comm_strategy: odag_sp_primitive
-# or odag_sp_generic
-# or odag_mp_primitive
-# or odag_mp_generic

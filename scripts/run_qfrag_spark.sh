@@ -35,11 +35,11 @@ while IFS='' read -r line || [ -n "$line" ]; do
 done < "$tempfile"
 
 # qfrag executable
-QFRAG_JAR_DIR="/home/ehussein/ArabesqueWorkspace/qfrag"
+QFRAG_JAR_DIR="/Users/ambermadvariya/src/Arabesque/target/"
 #QFRAG_JAR_DIR="."
 PWD="`pwd`"
 #QFRAG_JAR_DIR="$(dirname "$PWD")"
-QFRAG_JAR=`find $QFRAG_JAR_DIR -maxdepth 2 -name "QFrag-*-jar-with-dependencies.jar" | head -1`
+QFRAG_JAR=`find $QFRAG_JAR_DIR -maxdepth 2 -name "*-jar-with-dependencies.jar" | head -1`
 
 if [ -z "$QFRAG_JAR" ] ; then
   echo "No QFrag jar found in $QFRAG_JAR_DIR. Did you compile it?"
@@ -47,7 +47,7 @@ if [ -z "$QFRAG_JAR" ] ; then
 fi
 
 # submit the application to spark cluster
-$SPARK_HOME/bin/spark-submit --driver-memory $driverMemory --conf spark.driver.maxResultSize=$maxResultSize --verbose --class  io.arabesque.search.Runner $QFRAG_JAR -y $(basename $tempfile)
+$SPARK_HOME/bin/spark-submit --driver-memory $driverMemory --conf spark.driver.maxResultSize=$maxResultSize --verbose --class  io.arabesque.QfragRunner $QFRAG_JAR -y $(basename $tempfile)
 
 # remove the tempfile
 rm $tempfile

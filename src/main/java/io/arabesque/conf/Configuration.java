@@ -17,6 +17,8 @@ import io.arabesque.optimization.OptimizationSet;
 import io.arabesque.optimization.OptimizationSetDescriptor;
 import io.arabesque.pattern.Pattern;
 import io.arabesque.pattern.VICPattern;
+import io.arabesque.search.steps.QueryGraph;
+import io.arabesque.utils.MainGraphPartitioner;
 import io.arabesque.utils.pool.Pool;
 import io.arabesque.utils.pool.PoolRegistry;
 import org.apache.giraph.conf.ImmutableClassesGiraphConfiguration;
@@ -25,6 +27,8 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.Writable;
 import org.apache.log4j.Logger;
 
+import javax.management.Query;
+import java.io.Externalizable;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Paths;
@@ -136,6 +140,7 @@ public class Configuration<O extends Embedding> implements java.io.Serializable 
     private boolean is2LevelAggregationEnabled;
     private boolean forceGC;
     private CommunicationStrategyFactory communicationStrategyFactory;
+    private MainGraphPartitioner partitioner;
 
     private Class<? extends MainGraph> mainGraphClass;
     private Class<? extends OptimizationSetDescriptor> optimizationSetDescriptorClass;
@@ -150,6 +155,7 @@ public class Configuration<O extends Embedding> implements java.io.Serializable 
 
     private transient Map<String, AggregationStorageMetadata> aggregationsMetadata;
     private transient MainGraph mainGraph;
+    private transient QueryGraph queryGraph;
     private boolean isGraphEdgeLabelled;
     protected boolean initialized = false;
     private boolean isGraphMulti = false;
@@ -163,8 +169,12 @@ public class Configuration<O extends Embedding> implements java.io.Serializable 
 
     //***** QFrag paramters
 
+    public static final String S3_SUBSTR = "s3://";
+
     public static final String SEARCH_MAINGRAPH_CLASS = "search.graph.class";
     public static final String SEARCH_MAINGRAPH_CLASS_DEFAULT = "io.arabesque.graph.UnsafeCSRGraphSearch";
+
+    public static final String DATA_PARTITION_DIR = "data_partitions_dir";
 
     public static final String SEARCH_MAINGRAPH_PATH = "search_input_graph_path"; // no default - done
     public static final String SEARCH_MAINGRAPH_PATH_DEFAULT = null;
@@ -262,6 +272,12 @@ public class Configuration<O extends Embedding> implements java.io.Serializable 
             pool.reset();
         }
     }
+
+    public void setPartitioner(MainGraphPartitioner partitioner) {
+        this.partitioner = partitioner;
+    }
+
+    public MainGraphPartitioner getPartitioner() { return partitioner; }
 
     public Configuration(ImmutableClassesGiraphConfiguration giraphConfiguration) {
         this.giraphConfiguration = giraphConfiguration;
@@ -435,8 +451,16 @@ public class Configuration<O extends Embedding> implements java.io.Serializable 
         return (G) mainGraph;
     }
 
+    public QueryGraph getQueryGraph() {
+        return queryGraph;
+    }
+
     public <G extends MainGraph> void setMainGraph(G mainGraph) {
         this.mainGraph = mainGraph;
+    }
+
+    public void setQueryGraph(QueryGraph queryGraph) {
+        this.queryGraph = queryGraph;
     }
 
     protected MainGraph createGraph() {

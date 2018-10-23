@@ -1,6 +1,7 @@
 package io.arabesque.graph;
 
 import io.arabesque.conf.Configuration;
+import io.arabesque.search.steps.QueryGraph;
 import io.arabesque.utils.collection.IntArrayList;
 import com.koloboke.collect.IntIterator;
 import com.koloboke.collect.map.hash.HashIntIntMap;
@@ -61,22 +62,32 @@ public class UnsafeCSRGraphSearch extends UnsafeCSRMainGraph
         super(filePath);
     }
 
+    public UnsafeCSRGraphSearch(String fileName, boolean S3_PATH) throws IOException {
+        super(fileName, S3_PATH);
+    }
+
     public UnsafeCSRGraphSearch(org.apache.hadoop.fs.Path hdfsPath) throws IOException {
         super(hdfsPath);
     }
 
+    public UnsafeCSRGraphSearch(org.apache.hadoop.fs.Path hdfsPath, boolean partitionFlag) throws IOException {
+        super(hdfsPath, partitionFlag);
+    }
+
     void setVertexNeighborLabelPos(int index, int index2, int value){
-        if (index>numVertices || index2 >= numLabels || index < 0 || index2 <0){
-            throw new RuntimeException("Accessing above the limits (case 1): "+index+ " "+index2);
+        index = index - (int)vertexOffset;
+        if (index>numVertices || index2 >= numLabels || index < 0 || index2 < 0){
+            throw new RuntimeException("Accessing above the limits (case 1): " + index + " " + index2);
         }
         if (index == numVertices && index2 > 0){
-            throw new RuntimeException("Accessing above the limits (case 2): "+index+ " "+index2);
+            throw new RuntimeException("Accessing above the limits (case 2): " + index + " " + index2);
         }
         UNSAFE.putInt(vertexNeighLabelPos + (index * numLabels * INT_SIZE_IN_BYTES +
                                                 index2 * INT_SIZE_IN_BYTES), value);
     }
 
     private int getVertexNeighborLabelPos(int index, int index2) {
+        index = index - (int)vertexOffset;
         if (index>numVertices || index2 >= numLabels || index < 0 || index2 <0){
             throw new RuntimeException("Accessing above the limits (case 1):"+index+ " "+index2);
         }
@@ -134,6 +145,7 @@ public class UnsafeCSRGraphSearch extends UnsafeCSRMainGraph
     protected int parse_vertex(StringTokenizer tokenizer, int prev_vertex_id, int edges_position) {
         int vertexId = Integer.parseInt(tokenizer.nextToken());
         int vertexLabel = Integer.parseInt(tokenizer.nextToken());
+        //if(!queryGraph.isLabelInQueryGraph(vertexLabel)) { return -100; }
         if (prev_vertex_id + 1 != vertexId) {
             throw new RuntimeException("Input graph isn't sorted by vertex id, or vertex id not sequential\n " +
                 "Expecting:" + (prev_vertex_id + 1) + " Found:" + vertexId);
@@ -192,7 +204,7 @@ public class UnsafeCSRGraphSearch extends UnsafeCSRMainGraph
 
             int prevLabel = 0;
             while (neigh < neigh_end) {
-                int label = getVertexLabel(getEdgeDst(neigh));
+                int label = partitioner.getVertexLabel(getEdgeDst(neigh));
 
                 if (prevLabel != label && label > 0){
                     while ( label > prevLabel){
@@ -221,18 +233,16 @@ public class UnsafeCSRGraphSearch extends UnsafeCSRMainGraph
         System.out.println("Start building now next reference!!!");
         vertexNeighLabelPos = UNSAFE.allocateMemory((numVertices*numLabels+1L) * INT_SIZE_IN_BYTES);
         int neigh=0;
-        for (int i=0;i<numVertices;i++){
+        for (int i= (int)vertexOffset; i < (int)vertexOffset + numVertices; i++){
             neigh         = getVertexPos(i);
             int neigh_end = getVertexPos(i+1);
 
-
             HashIntIntMap map = HashIntIntMaps.newMutableMap();
             neighborhoodMap.put(i,map);
-
             int prevLabel = 0;
             while (neigh < neigh_end) {
                 final int neigh_id = getEdgeDst(neigh);
-                int label = getVertexLabel(neigh_id);
+                int label = partitioner.getVertexLabel(neigh_id);
                 map.put(neigh_id,label);
 
                 if (prevLabel != label && label > 0){
@@ -252,7 +262,7 @@ public class UnsafeCSRGraphSearch extends UnsafeCSRMainGraph
             }
         }
         //Add the last so that we don't care about limits.
-        setVertexNeighborLabelPos((int)numVertices,0,neigh);
+        setVertexNeighborLabelPos((int)vertexOffset + (int)numVertices,0,neigh);
 
     }
 
@@ -402,7 +412,7 @@ public class UnsafeCSRGraphSearch extends UnsafeCSRMainGraph
     }
 
     protected boolean vertexHasLabel(int destinationLabel, int destVertexId) {
-        return destinationLabel == getVertexLabel(destVertexId);
+        return destinationLabel == partitioner.getVertexLabel(destVertexId);
     }
 
     public class MyIterator implements IntIterator {
@@ -484,7 +494,7 @@ public class UnsafeCSRGraphSearch extends UnsafeCSRMainGraph
                 // verticesIndexLabel
                 // TODO add a safety check
                 // TODO the superclass should take a long parameter, but this would require changing a central interface
-                out.writeInt(getVertexLabel((int) index));
+                out.writeInt(partitioner.getVertexLabel((int) index));
             }
             for (long index = 0; index < numEdges; index++) {
                 // edgesIndex

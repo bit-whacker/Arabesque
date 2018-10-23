@@ -1,3 +1,12 @@
+execution_engine: spark
+spark_master: local[*]
+num_workers: 1
+num_compute_threads: 6
+worker_memory: 10g
+driver_memory: 8g
+max_result_size: 5g
+output_active: yes
+comm_strategy: odag_sp_primitive
 search_input_graph_path: hdfs://localhost:8020/input/citeseer.graph
 search_output_path: output-search
 search_injective: true

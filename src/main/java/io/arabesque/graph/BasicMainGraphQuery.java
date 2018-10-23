@@ -11,6 +11,7 @@ import org.apache.log4j.Logger;
 
 import java.io.*;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.StringTokenizer;
 
@@ -20,6 +21,7 @@ import java.util.StringTokenizer;
  */
 public class BasicMainGraphQuery extends BasicMainGraph {
     private static final Logger LOG = Logger.getLogger(BasicMainGraphQuery.class);
+    private HashSet<Integer> labelSet;
 
     private Int2ObjectOpenHashMap<IntArrayList> smallerIds;
 
@@ -35,6 +37,10 @@ public class BasicMainGraphQuery extends BasicMainGraph {
 
     public BasicMainGraphQuery(Path filePath) throws IOException {
         super(filePath);
+    }
+
+    public BasicMainGraphQuery(String fileName, boolean S3_FLAG) throws IOException {
+        super(fileName, S3_FLAG);
     }
 
     public BasicMainGraphQuery(org.apache.hadoop.fs.Path hdfsPath) throws IOException {
@@ -116,6 +122,7 @@ public class BasicMainGraphQuery extends BasicMainGraph {
         }
     }
 
+    @Override
     protected void readFromInputStreamText(InputStream is) {
         long start = 0;
 
@@ -125,6 +132,7 @@ public class BasicMainGraphQuery extends BasicMainGraph {
         }
 
         smallerIds = new Int2ObjectOpenHashMap<>();
+        labelSet = new HashSet<>();
 
         int prev_vertex_id = -1;
         try {
@@ -158,6 +166,7 @@ public class BasicMainGraphQuery extends BasicMainGraph {
                 }
 
                 Vertex vertex = parseVertex(tokenizer);
+                labelSet.add(vertex.getVertexLabel());
                 if (prev_vertex_id + 1 != vertex.getVertexId()) {
                     throw new RuntimeException("Input graph isn't sorted by vertex id, or vertex id not sequential\n " +
                             "Expecting:" + (prev_vertex_id + 1) + " Found:" + vertex.getVertexId());
@@ -199,7 +208,10 @@ public class BasicMainGraphQuery extends BasicMainGraph {
             LOG.info("Number vertices: " + numVertices);
             LOG.info("Number edges: " + numEdges);
         }
-        //System.out.println("Finish reading:"+negative_edge_label);
+    }
+
+    public boolean checkLabel(int label) {
+        return labelSet.contains(label);
     }
 
     public IntArrayList getSmallerIds (int vertexId){

@@ -7,6 +7,7 @@ import io.arabesque.conf.SparkConfiguration;
 import io.arabesque.graph.UnsafeCSRGraphSearch;
 import io.arabesque.search.trees.Domain;
 import io.arabesque.search.trees.SearchDataTree;
+import io.arabesque.utils.MainGraphPartitioner;
 import io.arabesque.utils.ThreadOutput;
 import io.arabesque.utils.collection.IntArrayList;
 import org.apache.log4j.Level;
@@ -19,6 +20,8 @@ import org.apache.spark.util.CollectionAccumulator;
 import org.mortbay.log.Log;
 import scala.Tuple2;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.*;
 
 import static io.arabesque.search.steps.QueryGraph.STAR_LABEL;
@@ -28,7 +31,7 @@ import static io.arabesque.utils.Hashing.murmur3_32;
 
 public class TreeBuilding
         implements Function2<Integer, Iterator<Tuple2<Integer, SearchDataTree>>,
-            Iterator<Tuple2<Integer, SearchDataTree>>> {
+        Iterator<Tuple2<Integer, SearchDataTree>>> {
 
     private static final Logger LOG = Logger.getLogger(TreeBuilding.class);
 
@@ -46,6 +49,7 @@ public class TreeBuilding
     private long init_Finish_Time = 0;
     private long computation_Start_Time = 0;
     private long computation_Finish_Time = 0;
+    private MainGraphPartitioner partitioner;
 
     public TreeBuilding(int totalPartitions, Broadcast<SparkConfiguration> configBC, Broadcast<QueryGraph> queryGraphBC, Map<String, CollectionAccumulator<Long>> _accums) {
         super();
@@ -62,6 +66,8 @@ public class TreeBuilding
         this.totalPartitions = totalPartitions;
         this.configBC = configBC;
         this.queryGraphBC = queryGraphBC;
+        this.partitioner = conf.getPartitioner();
+        //Start testing from here before coding forward
 
         this.minMatches = conf.getInteger(conf.SEARCH_OUTLIERS_MIN_MATCHES, conf.SEARCH_OUTLIERS_MIN_MATCHES_DEFAULT).intValue();
 
@@ -84,11 +90,25 @@ public class TreeBuilding
 
     @Override
     public Iterator<Tuple2<Integer, SearchDataTree>> call(Integer partitionId, Iterator<Tuple2<Integer, SearchDataTree>> v2) {
-
         Configuration conf = configBC.value();
         conf.initialize();
 
-        UnsafeCSRGraphSearch dataGraph = Configuration.get().getSearchMainGraph();
+        String inputGraphPath = conf.getString(conf.SEARCH_MAINGRAPH_PATH,conf.SEARCH_MAINGRAPH_PATH_DEFAULT);
+        //inputGraphPath = inputGraphPath + "-" + partitionId;
+        UnsafeCSRGraphSearch dataGraph;
+        if(inputGraphPath == null)
+            throw new RuntimeException("Main input graph was not set in the config file");
+
+        try {
+            if (inputGraphPath.contains(conf.S3_SUBSTR)) {
+                dataGraph = new UnsafeCSRGraphSearch(inputGraphPath, true);
+            } else {
+                dataGraph = new UnsafeCSRGraphSearch(new org.apache.hadoop.fs.Path(inputGraphPath));
+            }
+        }
+        catch(IOException e) {
+            throw new RuntimeException(e);
+        }
         QueryGraph queryGraph = queryGraphBC.getValue();
 
         // get the initialization finish time stamp
@@ -139,7 +159,7 @@ public class TreeBuilding
             if (outlierPct > 0
                     && queryGraph.hasCrossEdges()
                     && matchingCost > minMatches
-                    ) {
+            ) {
 
                 if(heavyTrees.size() < topk){
                     heavyTrees.add(new SearchDataTreeCost(currentSearchDataTree,matchingCost));
@@ -180,8 +200,8 @@ public class TreeBuilding
 
     private int pickLocalCandidates(int partitionId, UnsafeCSRGraphSearch dataGraph, QueryGraph queryGraph, IntArrayList candidates){
         int[] tmp = new int[1];
-
-        IntArrayList startCandidates = queryGraph.getRootMatchingVertices();
+        //Change this call to queryGraph.getRootLabel
+        IntArrayList startCandidates = queryGraph.getRootMatchingVertices(dataGraph);
 
         if(startCandidates != null) {
             for (int i = 0; i < startCandidates.size(); i++) {
@@ -264,6 +284,14 @@ public class TreeBuilding
         // iterate over all neighbors of sourceDataVertexId with label destinationLabel
         while (searchExtensionsIterator.hasNext()) {
             int extension = searchExtensionsIterator.nextInt();
+            if(!dataGraph.inGraph(extension)) {
+                try {
+                    InputStream is = partitioner.getFileStream(extension);
+                    dataGraph.readFromInputStreamText(is);
+                } catch(IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
             visitedExtensions++;
             int dataVertexDegree = dataGraph.getNeighborhoodSizeWithLabel(extension, -1);
             if (dataVertexDegree < destinationDegree){

@@ -7,6 +7,7 @@ import io.arabesque.search.steps.EmbeddingEnumeration;
 import io.arabesque.search.steps.QueryGraph;
 import io.arabesque.search.steps.TreeBuilding;
 import io.arabesque.search.trees.SearchDataTree;
+import io.arabesque.utils.MainGraphPartitioner;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
@@ -61,7 +62,7 @@ public class QfragRunner implements Tool {
     public final static String EMBEDDING_ENUMERATION_COMPUTATION_START_TIME = "EMBEDDING_ENUMERATION_COMPUTATION_START_TIME";
     public final static String EMBEDDING_ENUMERATION_COMPUTATION_FINISH_TIME = "EMBEDDING_ENUMERATION_COMPUTATION_FINISH_TIME";
 
-    long dataGraphBuildingTime;
+    long dataGraphBuildingTime = 0;
     long queryGraphBuildingTime;
     long treeBuildingComputationTime;
     long embeddingEnumerationComputationTime;
@@ -93,21 +94,10 @@ public class QfragRunner implements Tool {
         inputGraphPath = config.getString(config.SEARCH_MAINGRAPH_PATH,config.SEARCH_MAINGRAPH_PATH_DEFAULT);
         queryGraphPath = config.getString(config.SEARCH_QUERY_GRAPH_PATH,config.SEARCH_QUERY_GRAPH_PATH_DEFAULT);
 
-        dataGraphBuildingTime = System.currentTimeMillis();
+        MainGraphPartitioner partitioner = new MainGraphPartitioner(config);
 
-        UnsafeCSRGraphSearch dataGraph = null;
-        try {
-            if(inputGraphPath == null)
-                throw new RuntimeException("Main input graph was not set in the config file");
-            dataGraph = new UnsafeCSRGraphSearch(new org.apache.hadoop.fs.Path(inputGraphPath));
-        } catch (IOException e) {
-            System.out.println("Error reading the data graph");
-            System.out.println(e.toString());
-        }
-
-        dataGraphBuildingTime = System.currentTimeMillis() - dataGraphBuildingTime;
-
-        config.setSearchMainGraph(dataGraph);
+        Thread thread = new Thread(partitioner);
+        thread.start();
 
         queryGraphBuildingTime = System.currentTimeMillis();
 
@@ -117,6 +107,10 @@ public class QfragRunner implements Tool {
 
         queryGraphBuildingTime = System.currentTimeMillis() - queryGraphBuildingTime;
 
+        config.setQueryGraph(queryGraph);
+
+        queryGraph.buildTree();
+
         // This also broadcasts the data graph, which is in the closure of the configuration
         configBC = sc.broadcast(config);
         queryGraphBC = sc.broadcast(queryGraph);
@@ -125,7 +119,12 @@ public class QfragRunner implements Tool {
 
         // Initializing the accumulator
         initAccums();
-
+        try {
+            thread.join();
+        } catch(InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        config.setPartitioner(partitioner);
         // TODO need to broadcast the data graph and query graph, and probably also the Configuration singleton?
     }
 

@@ -18,10 +18,7 @@ import java.io.Externalizable;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 
 /**
@@ -73,6 +70,10 @@ public class QueryGraph implements Externalizable {
     // updated by the constructor in BFS visit, read to compute matching orders
     private ArrayList<Node> leafNodes = new ArrayList<>();
     private IntOpenHashSet leafDFSPos = new IntOpenHashSet();
+    private int numVertices;
+    private int numEdges;
+    private int maxSizeEmbedding;
+    private Configuration conf;
 
     // ###################################################################
 
@@ -80,34 +81,44 @@ public class QueryGraph implements Externalizable {
 
     public QueryGraph(String queryFileName) {
 
-        LOG.info("QFrag: Building query tree");
+        LOG.info("QFrag: Reading query graph");
 
         long start = System.currentTimeMillis();
 
         // obtain input data
-        Configuration conf = Configuration.get();
+        conf = Configuration.get();
 
         if (queryFileName == null) {
             throw new RuntimeException("Name of the query file missing from yaml file");
         }
 
         isGraphEdgeLabelled = conf.isGraphEdgeLabelled();
-
-        boolean full_start = conf.getBoolean(START_FULL,true);
-
-        Path queryFile = new Path(queryFileName);
-
         try {
-            queryGraph = new BasicMainGraphQuery(queryFile);
-        } catch (IOException e) {
-            throw new RuntimeException("Problem reading query file " + queryFileName + ": " + e.toString());
+            if (queryFileName.contains(conf.S3_SUBSTR)) {
+                queryGraph = new BasicMainGraphQuery(queryFileName, true);
+            } else {
+                Path queryFile = new Path(queryFileName);
+                queryGraph = new BasicMainGraphQuery(queryFile);
+            }
+        }
+        catch(IOException e) {
+            throw new RuntimeException(e);
         }
         has_star_label_on_edge = queryGraph.has_star_on_edges();
 
-        int numVertices = queryGraph.getNumberVertices();
-        int numEdges = queryGraph.getNumberEdges();
-        int maxSizeEmbedding = Math.max(numVertices, numEdges);
+        numVertices = queryGraph.getNumberVertices();
+        numEdges = queryGraph.getNumberEdges();
+        maxSizeEmbedding = Math.max(numVertices, numEdges);
+        LOG.info("QFrag: Read graph from file: " + (System.currentTimeMillis()-start));
+    }
 
+    public void buildTree() {
+        conf = Configuration.get();
+        LOG.info("QFrag: Building query tree");
+
+        long start = System.currentTimeMillis();
+
+        boolean full_start = conf.getBoolean(START_FULL, true);
         fatherToChildrenDFS = new ArrayList<>();
         for (int i = 0; i < numVertices; i++){
             fatherToChildrenDFS.add(new IntArrayList());
@@ -117,7 +128,8 @@ public class QueryGraph implements Externalizable {
 
         // determine root vertex and its matches
 
-        int rootVertexId = findRootVertexAndMatches(full_start);
+        int rootVertexId = findRoot();
+        //int rootVertexId = findRootVertexAndMatches(full_start);
 
         // create root node in the query tree and init DFS search
         root = new Node(rootVertexId, null, -1, numVertices);
@@ -189,8 +201,22 @@ public class QueryGraph implements Externalizable {
         LOG.info("QFrag: Time for query tree and candidates: " + (System.currentTimeMillis()-start));
     }
 
+    public boolean isLabelInQueryGraph(int label) { return queryGraph.checkLabel(label); }
+
     boolean has_star_label_on_edge() {
         return has_star_label_on_edge;
+    }
+
+    private int findRoot() {
+        int maxDegree = -1;
+        int maxDegreeVertex = -1;
+        for(int i=0; i<queryGraph.getNumberVertices();i++) {
+            if(queryGraph.neighborhoodSize(i) > maxDegree) {
+                maxDegree = queryGraph.neighborhoodSize(i);
+                maxDegreeVertex = i;
+            }
+        }
+        return maxDegreeVertex;
     }
 
     // used in constructor - careful!
@@ -642,11 +668,12 @@ public class QueryGraph implements Externalizable {
         return fatherToChildrenDFS.get(fatherDFSPos);
     }
 
-    IntArrayList getRootMatchingVertices(){
+    IntArrayList getRootMatchingVertices(SearchGraph dataGraph){
         int rootLabel = queryGraph.getVertexLabel(root.queryVertexId);
-        SearchGraph dataGraph = Configuration.get().getSearchMainGraph();
         return dataGraph.getVerticesWithLabel(rootLabel);
     }
+
+    int getRootLabel() { return queryGraph.getVertexLabel(root.queryVertexId); }
 
     public int getNumberVertices() {
         return queryGraph.getNumberVertices();

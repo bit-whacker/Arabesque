@@ -3,6 +3,8 @@ package io.arabesque.graph;
 import com.koloboke.collect.IntCollection;
 import com.koloboke.function.IntConsumer;
 import io.arabesque.conf.Configuration;
+import io.arabesque.search.steps.QueryGraph;
+import io.arabesque.utils.MainGraphPartitioner;
 import io.arabesque.utils.collection.ReclaimableIntCollection;
 import org.apache.commons.io.input.BOMInputStream;
 import org.apache.log4j.Logger;
@@ -10,6 +12,8 @@ import org.apache.log4j.Logger;
 import java.io.*;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.StringTokenizer;
 
 /**
@@ -45,6 +49,11 @@ public class UnsafeCSRMainGraph extends AbstractMainGraph {
     boolean hasMultipleVertexLabels;
 
     boolean isMultigraph;
+    protected QueryGraph queryGraph;
+
+    private HashSet<Integer> vertexSet;
+
+    protected MainGraphPartitioner partitioner;
 
     public UnsafeCSRMainGraph() { }
 
@@ -60,8 +69,16 @@ public class UnsafeCSRMainGraph extends AbstractMainGraph {
         super(filePath);
     }
 
+    public UnsafeCSRMainGraph(String fileName, boolean S3_FLAG) throws IOException {
+        super(fileName, S3_FLAG);
+    }
+
     public UnsafeCSRMainGraph(org.apache.hadoop.fs.Path hdfsPath) throws IOException {
         super(hdfsPath);
+    }
+
+    public UnsafeCSRMainGraph(org.apache.hadoop.fs.Path hdfsPath, boolean partitionFlag) throws IOException {
+        super(hdfsPath, partitionFlag);
     }
 
     protected void build() {
@@ -71,13 +88,12 @@ public class UnsafeCSRMainGraph extends AbstractMainGraph {
         // Else we fail.
         built = true;
         Configuration conf = Configuration.get();
+        partitioner = conf.getPartitioner();
         // DEBUG!!
         // numEdges    = conf.getNumberEdges();
         // numVertices = conf.getNumberVertices();
         // isMultigraph = conf.isGraphMulti();
         // hasMultipleVertexLabels = conf.hasMultipleVertexLabels();
-        numEdges = conf.getInteger(conf.SEARCH_NUM_EDGES, conf.SEARCH_NUM_EDGES_DEFAULT);
-        numVertices = conf.getInteger(conf.SEARCH_NUM_VERTICES, conf.SEARCH_NUM_VERTICES_DEFAULT);
 
         if (numEdges < 0){
             throw new RuntimeException("Need to know in advance the number of edges");
@@ -102,7 +118,7 @@ public class UnsafeCSRMainGraph extends AbstractMainGraph {
 
         // Currently if edge labelled then we have no vertex label (This could change).
         //if (!isEdgeLabelled) {
-            verticesIndexLabel = UNSAFE.allocateMemory((numVertices + 1L) * INT_SIZE_IN_BYTES);
+        verticesIndexLabel = UNSAFE.allocateMemory((numVertices + 1L) * INT_SIZE_IN_BYTES);
         //}
 
         edgesIndex       = UNSAFE.allocateMemory(numEdges * INT_SIZE_IN_BYTES);
@@ -111,20 +127,24 @@ public class UnsafeCSRMainGraph extends AbstractMainGraph {
 
     protected void setVertexPos(long index, int value) {
         //Allow equal due to the extra virtual vertex i add.
+        index = index - vertexOffset;
         if (index > numVertices || index < 0){
-            throw new RuntimeException("Above limit vertex:"+index);
+            throw new RuntimeException("Above limit vertex: Set "+index);
         }
         UNSAFE.putInt(verticesIndex + (index*INT_SIZE_IN_BYTES), value);
     }
 
     protected int getVertexPos(long index) {
+        index = index - vertexOffset;
         if (index > numVertices || index < 0 ){
-            throw new RuntimeException("Above limit vertex:Get"+index);
+            throw new RuntimeException("Above limit vertex: Get "+index);
         }
         return UNSAFE.getInt(verticesIndex+(index*INT_SIZE_IN_BYTES));
     }
 
+    @Deprecated
     protected void setVertexLabel(long index, int value) {
+        index = index - (int)vertexOffset;
         if (index > numVertices || index < 0 ){
             throw new RuntimeException("Above limit vertex label: "+index + ", numVertices = " + numVertices);
         }
@@ -132,21 +152,26 @@ public class UnsafeCSRMainGraph extends AbstractMainGraph {
         UNSAFE.putInt(verticesIndexLabel + (index*INT_SIZE_IN_BYTES), value);
     }
 
+    @Deprecated
     public int getVertexLabel(int index) {
+        index = index - (int)vertexOffset;
         if (index> numVertices || index < 0 ){
-            throw new RuntimeException("Above limit vertex:Get"+index);
+            throw new RuntimeException("Above limit vertex: Get "+index);
         }
 
         return UNSAFE.getInt(verticesIndexLabel+(index*INT_SIZE_IN_BYTES));
     }
 
     public int getEdgeDst(int index){
+        index = index - (int)edgeOffset;
         if (index>=numEdges || index < 0 ){
-            throw new RuntimeException("Above limit edges1"+index);
+            throw new RuntimeException("Above limit edges: "+index);
         }
 
         return UNSAFE.getInt(edgesIndex+(index*INT_SIZE_IN_BYTES));
     }
+
+    public boolean inGraph(int vertex_id) { return vertexSet.contains(vertex_id); }
 
     @Override
     public int neighborhoodSize(int vertexId) {
@@ -154,6 +179,7 @@ public class UnsafeCSRMainGraph extends AbstractMainGraph {
     }
 
     public void setEdgeDst(int index,int value){
+        index = index - (int)edgeOffset;
         if (index >= numEdges || index < 0 ){
             throw new RuntimeException("Above limit edges:"+index);
         }
@@ -162,6 +188,7 @@ public class UnsafeCSRMainGraph extends AbstractMainGraph {
     }
 
     public int getEdgeSource(int index) {
+        index = index - (int)edgeOffset;
         if (index>=numEdges || index < 0 ){
             throw new RuntimeException("Above limit edges2"+index);
         }
@@ -170,6 +197,7 @@ public class UnsafeCSRMainGraph extends AbstractMainGraph {
     }
 
     public void setEdgeSource(int index, int value) {
+        index = index - (int)edgeOffset;
         if (index >= numEdges || index < 0 ){
             throw new RuntimeException("Above limit edges Source:"+index);
         }
@@ -225,7 +253,10 @@ public class UnsafeCSRMainGraph extends AbstractMainGraph {
     }
 
     @Override
-    protected void readFromInputStreamText(InputStream is) throws IOException {
+    public void readFromInputStreamText(InputStream is) throws IOException {
+        if(vertexSet==null) { vertexSet = new HashSet<>(); }
+        int prev_vertex_id = (int)vertexOffset - 1;
+        int edges_position = (int)edgeOffset;
         long start = 0;
 
         if (LOG.isInfoEnabled()) {
@@ -233,14 +264,14 @@ public class UnsafeCSRMainGraph extends AbstractMainGraph {
             LOG.info("Initializing");
         }
 
-        int prev_vertex_id = -1;
-        int edges_position = 0;
+        queryGraph = Configuration.get().getQueryGraph();
 
         BufferedReader reader = new BufferedReader(
-            new InputStreamReader(new BOMInputStream(is)));
+            new InputStreamReader(is));
 
         String line = reader.readLine();
         boolean firstLine = true;
+        boolean startLine = true;
 
         while (line != null) {
             StringTokenizer tokenizer = new StringTokenizer(line);
@@ -252,10 +283,12 @@ public class UnsafeCSRMainGraph extends AbstractMainGraph {
                     continue;
                 }
             }
-
             int vertexId = parse_vertex(tokenizer, prev_vertex_id,edges_position);
+            if(startLine) {
+                startLine = false;
+            }
+            vertexSet.add(vertexId);
             prev_vertex_id = vertexId;
-
             try {
                 edges_position = parse_edge(tokenizer, vertexId, edges_position);
             } catch (RuntimeException e){
@@ -264,6 +297,7 @@ public class UnsafeCSRMainGraph extends AbstractMainGraph {
             }
             line = reader.readLine();
         }
+        System.out.println("Num edges parsed: " + (edges_position - edgeOffset));
         reader.close();
         // Add the last one, so that we don't care about boundaries of edges.
         setVertexPos(prev_vertex_id+1,edges_position);
@@ -273,7 +307,6 @@ public class UnsafeCSRMainGraph extends AbstractMainGraph {
             LOG.info("Number vertices: " + numVertices);
             LOG.info("Number edges: " + numEdges);
         }
-
         end_reading();
     }
 
@@ -293,16 +326,24 @@ public class UnsafeCSRMainGraph extends AbstractMainGraph {
         return false;
     }
 
+    public void resetLabels(HashMap<Integer, Integer> labelIdx) {
+        for(int key:labelIdx.keySet()) {
+            int label = labelIdx.get(key);
+            setVertexLabel(key, label);
+        }
+    }
+
     protected int parse_vertex(StringTokenizer tokenizer, int prev_vertex_id, int edges_position) {
         int vertexId = Integer.parseInt(tokenizer.nextToken());
         int vertexLabel = Integer.parseInt(tokenizer.nextToken());
+        if(!queryGraph.isLabelInQueryGraph(vertexLabel)) { return -100; }
         if (prev_vertex_id + 1 != vertexId) {
             throw new RuntimeException("Input graph isn't sorted by vertex id, or vertex id not sequential\n " +
                 "Expecting:" + (prev_vertex_id + 1) + " Found:" + vertexId);
         }
 
-        setVertexPos(vertexId,edges_position);
-        setVertexLabel(vertexId,vertexLabel);
+        setVertexPos((long) vertexId,edges_position);
+        setVertexLabel((long) vertexId,vertexLabel);
         return vertexId;
     }
 

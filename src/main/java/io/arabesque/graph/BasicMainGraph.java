@@ -9,9 +9,8 @@ import org.apache.log4j.Logger;
 
 import java.io.*;
 import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.StringTokenizer;
+import java.util.*;
+
 import jdk.nashorn.internal.objects.annotations.Getter;
 
 public class BasicMainGraph extends AbstractMainGraph {
@@ -35,6 +34,10 @@ public class BasicMainGraph extends AbstractMainGraph {
 
     public BasicMainGraph(Path filePath) throws IOException {
         super(filePath);
+    }
+
+    public BasicMainGraph(String fileName, boolean S3_FLAG) throws IOException {
+        super(fileName, S3_FLAG);
     }
 
     public BasicMainGraph(org.apache.hadoop.fs.Path hdfsPath) throws IOException {

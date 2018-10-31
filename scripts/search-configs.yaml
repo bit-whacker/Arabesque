@@ -1,4 +1,4 @@
-search_input_graph_path: hdfs://localhost:8020/input/citeseer.graph
+search_input_graph_path: s3://qfrag/graphs/citeseer.graph
 search_output_path: output-search
 search_injective: true
 search_outliers_pct: 0.001
@@ -12,4 +12,5 @@ search_num_edges: 9072
 search_num_labels: 6
 log_level: fatal
 system_type: search
-data_partitions_dir: /Users/ambermadvariya/src/Arabesque/data/partitions/
+data_partitions_dir: data/partitions
+partition_path: s3://qfrag/partitioned_graph/

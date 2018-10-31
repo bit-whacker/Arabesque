@@ -89,10 +89,10 @@ public class UnsafeCSRGraphSearch extends UnsafeCSRMainGraph
     private int getVertexNeighborLabelPos(int index, int index2) {
         index = index - (int)vertexOffset;
         if (index>numVertices || index2 >= numLabels || index < 0 || index2 <0){
-            throw new RuntimeException("Accessing above the limits (case 1):"+index+ " "+index2);
+            throw new RuntimeException("Accessing above the limits (case 1):" + index + " " + index2);
         }
         if (index == numVertices && index2 > 0){
-            throw new RuntimeException("Accessing above the limits (case 2):"+index+ " "+index2);
+            throw new RuntimeException("Accessing above the limits (case 2):" + index + " " + index2);
         }
 
         return UNSAFE.getInt(vertexNeighLabelPos + (index * numLabels * INT_SIZE_IN_BYTES +
@@ -267,7 +267,7 @@ public class UnsafeCSRGraphSearch extends UnsafeCSRMainGraph
     }
 
     protected int getVertexNeighborLabelStart(int i, int label){
-        if (i == 0 & label == 0) {
+        if (i == vertexOffset & label == 0) {
             return 0;
         }
 

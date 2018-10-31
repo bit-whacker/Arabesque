@@ -74,6 +74,32 @@ public class BasicMainGraph extends AbstractMainGraph {
         vertexNeighbourhoods = null;
     }
 
+    @Override
+    public void init(String fileName, boolean S3_FLAG) throws IOException {
+        long start = 0;
+
+        if (LOG.isInfoEnabled()) {
+            start = System.currentTimeMillis();
+            LOG.info("Initializing");
+        }
+
+        Configuration conf = Configuration.get();
+        isEdgeLabelled = conf.isGraphEdgeLabelled();
+        isMultiGraph = conf.isGraphMulti();
+        isFloatLabel = conf.isFloatEdge();
+        InputStream is = s3Object.readFromPath(fileName);
+        reset();
+        readFromInputStreamText(is);
+        is.close();
+        System.gc();
+
+        if (LOG.isInfoEnabled()) {
+            LOG.info("Done in " + (System.currentTimeMillis() - start));
+            LOG.info("Number vertices: " + numVertices);
+            LOG.info("Number edges: " + numEdges);
+        }
+    }
+
     protected void ensureCanStoreNewVertices(int numVerticesToAdd) {
         int newMaxVertexId = (int)(numVertices + numVerticesToAdd);
 

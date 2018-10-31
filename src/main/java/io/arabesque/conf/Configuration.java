@@ -175,6 +175,7 @@ public class Configuration<O extends Embedding> implements java.io.Serializable 
     public static final String SEARCH_MAINGRAPH_CLASS_DEFAULT = "io.arabesque.graph.UnsafeCSRGraphSearch";
 
     public static final String DATA_PARTITION_DIR = "data_partitions_dir";
+    public static final String PARTITION_PATH = "partition_path";
 
     public static final String SEARCH_MAINGRAPH_PATH = "search_input_graph_path"; // no default - done
     public static final String SEARCH_MAINGRAPH_PATH_DEFAULT = null;

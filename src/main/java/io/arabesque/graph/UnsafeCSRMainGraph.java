@@ -51,8 +51,6 @@ public class UnsafeCSRMainGraph extends AbstractMainGraph {
     boolean isMultigraph;
     protected QueryGraph queryGraph;
 
-    private HashSet<Integer> vertexSet;
-
     protected MainGraphPartitioner partitioner;
 
     public UnsafeCSRMainGraph() { }
@@ -171,8 +169,6 @@ public class UnsafeCSRMainGraph extends AbstractMainGraph {
         return UNSAFE.getInt(edgesIndex+(index*INT_SIZE_IN_BYTES));
     }
 
-    public boolean inGraph(int vertex_id) { return vertexSet.contains(vertex_id); }
-
     @Override
     public int neighborhoodSize(int vertexId) {
         return getVertexPos(vertexId+1) - getVertexPos(vertexId);
@@ -254,9 +250,17 @@ public class UnsafeCSRMainGraph extends AbstractMainGraph {
 
     @Override
     public void readFromInputStreamText(InputStream is) throws IOException {
-        if(vertexSet==null) { vertexSet = new HashSet<>(); }
-        int prev_vertex_id = (int)vertexOffset - 1;
-        int edges_position = (int)edgeOffset;
+
+        BufferedReader reader = new BufferedReader(
+                new InputStreamReader(is));
+        //Splitting this function in order to optimize reads from S3
+        readBuffer(reader);
+    }
+
+    @Override
+    public void readBuffer(BufferedReader reader) throws IOException{
+        int prev_vertex_id = (int) vertexOffset - 1;
+        int edges_position = (int) edgeOffset;
         long start = 0;
 
         if (LOG.isInfoEnabled()) {
@@ -265,10 +269,6 @@ public class UnsafeCSRMainGraph extends AbstractMainGraph {
         }
 
         queryGraph = Configuration.get().getQueryGraph();
-
-        BufferedReader reader = new BufferedReader(
-            new InputStreamReader(is));
-
         String line = reader.readLine();
         boolean firstLine = true;
         boolean startLine = true;
@@ -287,7 +287,6 @@ public class UnsafeCSRMainGraph extends AbstractMainGraph {
             if(startLine) {
                 startLine = false;
             }
-            vertexSet.add(vertexId);
             prev_vertex_id = vertexId;
             try {
                 edges_position = parse_edge(tokenizer, vertexId, edges_position);

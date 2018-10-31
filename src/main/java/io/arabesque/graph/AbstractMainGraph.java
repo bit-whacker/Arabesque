@@ -25,6 +25,8 @@ public abstract class AbstractMainGraph implements MainGraph {
 
     protected String name;
 
+    protected AwsS3Utils s3Object;
+
     public AbstractMainGraph() {
     }
 
@@ -38,6 +40,7 @@ public abstract class AbstractMainGraph implements MainGraph {
     }
 
     public AbstractMainGraph(String fileName, boolean S3_FLAG) throws IOException {
+        s3Object = new AwsS3Utils();
         init(fileName, S3_FLAG);
     }
 
@@ -103,20 +106,29 @@ public abstract class AbstractMainGraph implements MainGraph {
         }
     }
 
-    private void setGraphMetaData(org.apache.hadoop.fs.Path hdfsPath) {
+    private void setGraphMetaData(BufferedReader reader) {
         try {
-            FileSystem fs = hdfsPath.getFileSystem(new org.apache.hadoop.conf.Configuration());
-            InputStream is = fs.open(hdfsPath);
-            String metadata = new BufferedReader(new InputStreamReader(is)).readLine();
-            metadata = metadata.replace("#","");
+            String metadata = reader.readLine();
+            metadata = metadata.replace("#", "");
             StringTokenizer tokenizer = new StringTokenizer(metadata);
-            if(tokenizer.countTokens() < 4) { throw new RuntimeException("Not enough metadata"); }
+            if (tokenizer.countTokens() < 4) {
+                throw new RuntimeException("Not enough metadata");
+            }
             numVertices = Integer.parseInt(tokenizer.nextToken());
             numEdges = Integer.parseInt(tokenizer.nextToken());
             vertexOffset = Integer.parseInt(tokenizer.nextToken());
             edgeOffset = Integer.parseInt(tokenizer.nextToken());
-            System.out.println("Vertex offset is: " + vertexOffset);
-            System.out.println("Edge offset is: " + edgeOffset);
+        } catch(IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private BufferedReader getGraph(org.apache.hadoop.fs.Path hdfsPath) {
+        try {
+            FileSystem fs = hdfsPath.getFileSystem(new org.apache.hadoop.conf.Configuration());
+            InputStream is = fs.open(hdfsPath);
+            return new BufferedReader(
+                    new InputStreamReader(is));
         } catch(IOException e) {
             throw new RuntimeException(e);
         }
@@ -176,9 +188,11 @@ public abstract class AbstractMainGraph implements MainGraph {
             System.gc();
         } else if (path instanceof org.apache.hadoop.fs.Path) {
             org.apache.hadoop.fs.Path hadoopPath = (org.apache.hadoop.fs.Path) path;
-            setGraphMetaData(hadoopPath);
+            BufferedReader reader = getGraph(hadoopPath);
+            setGraphMetaData(reader);
             reset();
-            readFromHdfs(hadoopPath);
+            readFromBuffer(reader);
+            reader.close();
             System.gc();
         } else {
             throw new RuntimeException("Invalid path: " + path);
@@ -203,13 +217,14 @@ public abstract class AbstractMainGraph implements MainGraph {
         isEdgeLabelled = conf.isGraphEdgeLabelled();
         isMultiGraph = conf.isGraphMulti();
         isFloatLabel = conf.isFloatEdge();
-        reset();
-
-        AwsS3Utils s3Object = new AwsS3Utils();
-
+        System.out.println("Reading file: " + fileName);
         InputStream is = s3Object.readFromPath(fileName);
-        readFromInputStream(is);
-        is.close();
+        BufferedReader reader = new BufferedReader(new InputStreamReader(is));
+        setGraphMetaData(reader);
+        reset();
+        readFromBuffer(reader);
+        reader.close();
+        System.gc();
 
         if (LOG.isInfoEnabled()) {
             LOG.info("Done in " + (System.currentTimeMillis() - start));
@@ -272,6 +287,14 @@ public abstract class AbstractMainGraph implements MainGraph {
         is.close();
     }
 
+    protected void readFromBuffer(BufferedReader reader) {
+        try {
+            readBuffer(reader);
+        } catch(IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     protected void readFromInputStream(InputStream is) throws IOException {
         if (isBinary && isMultiGraph) {
             readFromInputStreamBinary(is);
@@ -328,4 +351,7 @@ public abstract class AbstractMainGraph implements MainGraph {
 
     protected abstract void readFromInputStreamBinary(InputStream is) throws IOException;
 
+    protected void readBuffer(BufferedReader reader) throws IOException {
+
+    };
 }

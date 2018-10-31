@@ -7,6 +7,7 @@ import io.arabesque.search.steps.EmbeddingEnumeration;
 import io.arabesque.search.steps.QueryGraph;
 import io.arabesque.search.steps.TreeBuilding;
 import io.arabesque.search.trees.SearchDataTree;
+import io.arabesque.utils.AwsS3Partitioner;
 import io.arabesque.utils.MainGraphPartitioner;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.util.Tool;
@@ -94,7 +95,12 @@ public class QfragRunner implements Tool {
         inputGraphPath = config.getString(config.SEARCH_MAINGRAPH_PATH,config.SEARCH_MAINGRAPH_PATH_DEFAULT);
         queryGraphPath = config.getString(config.SEARCH_QUERY_GRAPH_PATH,config.SEARCH_QUERY_GRAPH_PATH_DEFAULT);
 
-        MainGraphPartitioner partitioner = new MainGraphPartitioner(config);
+        MainGraphPartitioner partitioner;
+        if(inputGraphPath.contains(config.S3_SUBSTR)) {
+            partitioner = new AwsS3Partitioner(config);
+        } else {
+            partitioner = new MainGraphPartitioner(config);
+        }
 
         Thread thread = new Thread(partitioner);
         thread.start();

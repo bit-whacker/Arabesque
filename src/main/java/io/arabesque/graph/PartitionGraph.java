@@ -22,6 +22,7 @@ public class PartitionGraph implements SearchGraph, Externalizable {
     private Configuration config;
     private int numLabels;
     private boolean fastNeighbors;
+    private String partitionedPath;
 
     public PartitionGraph(Configuration config) {
         graphMap = new HashMap<>();
@@ -30,10 +31,11 @@ public class PartitionGraph implements SearchGraph, Externalizable {
         numLabels = config.getInteger(config.SEARCH_NUM_LABELS, config.SEARCH_NUM_LABELS_DEFAULT);
         this.config = config;
         fastNeighbors = config.getBoolean(config.SEARCH_FASTNEIGHBORS, config.SEARCH_FASTNEIGHBORS_DEFAULT);
+        partitionedPath = config.getString(config.PARTITION_PATH, "");
     }
 
     public void readPartition(int partition) {
-        String path = inputGraphPath + "-" + partition;
+        String path = partitionedPath + partition;
         UnsafeCSRGraphSearch dataGraph;
         try {
             if (path.contains(config.S3_SUBSTR)) {
@@ -50,7 +52,7 @@ public class PartitionGraph implements SearchGraph, Externalizable {
 
     private int getPartition(int vertexId, boolean vertexFlag) {
         int partitionId = 0;
-        if(vertexFlag){ partitionId = partitioner.getIdxByVertex(vertexId); }
+        if(vertexFlag) { partitionId = partitioner.getIdxByVertex(vertexId); }
         else { partitionId = partitioner.getIdxByEdge(vertexId); }
         if(!graphMap.containsKey(partitionId)) { readPartition(partitionId); }
         return partitionId;

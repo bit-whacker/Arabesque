@@ -4,6 +4,8 @@ import com.koloboke.collect.IntIterator;
 import io.arabesque.QfragRunner;
 import io.arabesque.conf.Configuration;
 import io.arabesque.conf.SparkConfiguration;
+import io.arabesque.graph.PartitionGraph;
+import io.arabesque.graph.SearchGraph;
 import io.arabesque.graph.UnsafeCSRGraphSearch;
 import io.arabesque.search.trees.Domain;
 import io.arabesque.search.trees.SearchDataTree;
@@ -95,20 +97,12 @@ public class TreeBuilding
 
         String inputGraphPath = conf.getString(conf.SEARCH_MAINGRAPH_PATH,conf.SEARCH_MAINGRAPH_PATH_DEFAULT);
         //inputGraphPath = inputGraphPath + "-" + partitionId;
-        UnsafeCSRGraphSearch dataGraph;
+        PartitionGraph dataGraph;
         if(inputGraphPath == null)
             throw new RuntimeException("Main input graph was not set in the config file");
 
-        try {
-            if (inputGraphPath.contains(conf.S3_SUBSTR)) {
-                dataGraph = new UnsafeCSRGraphSearch(inputGraphPath, true);
-            } else {
-                dataGraph = new UnsafeCSRGraphSearch(new org.apache.hadoop.fs.Path(inputGraphPath));
-            }
-        }
-        catch(IOException e) {
-            throw new RuntimeException(e);
-        }
+        dataGraph = new PartitionGraph(conf);
+        dataGraph.readPartition(partitionId);
         QueryGraph queryGraph = queryGraphBC.getValue();
 
         // get the initialization finish time stamp
@@ -198,7 +192,7 @@ public class TreeBuilding
         }
     }
 
-    private int pickLocalCandidates(int partitionId, UnsafeCSRGraphSearch dataGraph, QueryGraph queryGraph, IntArrayList candidates){
+    private int pickLocalCandidates(int partitionId, SearchGraph dataGraph, QueryGraph queryGraph, IntArrayList candidates){
         int[] tmp = new int[1];
         //Change this call to queryGraph.getRootLabel
         IntArrayList startCandidates = queryGraph.getRootMatchingVertices(dataGraph);
@@ -227,7 +221,7 @@ public class TreeBuilding
         return candidates.size();
     }
 
-    private int expand(SearchDataTree searchDataTree, UnsafeCSRGraphSearch dataGraph, QueryGraph queryGraph,
+    private int expand(SearchDataTree searchDataTree, SearchGraph dataGraph, QueryGraph queryGraph,
                        IntArrayList reusableExtensions, IntIterator searchExtensionsIterator){
 
         int totalExtensionsVisited = 0;
@@ -261,7 +255,7 @@ public class TreeBuilding
         return totalExtensionsVisited;
     }
 
-    private int addExtensions(SearchDataTree searchDataTree, UnsafeCSRGraphSearch dataGraph, QueryGraph queryGraph, int sourceDataVertexId,
+    private int addExtensions(SearchDataTree searchDataTree, SearchGraph dataGraph, QueryGraph queryGraph, int sourceDataVertexId,
                               int destDFSPos, int destinationLabel, int destinationDegree, IntArrayList edgeLabels,
                               IntArrayList reusableExtensions, IntIterator searchExtensionsIterator){
 
@@ -284,14 +278,6 @@ public class TreeBuilding
         // iterate over all neighbors of sourceDataVertexId with label destinationLabel
         while (searchExtensionsIterator.hasNext()) {
             int extension = searchExtensionsIterator.nextInt();
-            if(!dataGraph.inGraph(extension)) {
-                try {
-                    InputStream is = partitioner.getFileStream(extension);
-                    dataGraph.readFromInputStreamText(is);
-                } catch(IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
             visitedExtensions++;
             int dataVertexDegree = dataGraph.getNeighborhoodSizeWithLabel(extension, -1);
             if (dataVertexDegree < destinationDegree){

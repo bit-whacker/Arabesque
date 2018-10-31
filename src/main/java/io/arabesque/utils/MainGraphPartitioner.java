@@ -1,9 +1,5 @@
 package io.arabesque.utils;
 
-import com.koloboke.collect.map.hash.HashIntIntMap;
-import com.koloboke.collect.map.hash.HashIntIntMaps;
-import com.koloboke.collect.map.hash.HashIntObjMap;
-import com.koloboke.collect.map.hash.HashIntObjMaps;
 import io.arabesque.conf.SparkConfiguration;
 import io.arabesque.utils.collection.IntArrayList;
 import org.apache.commons.io.FileUtils;
@@ -12,19 +8,20 @@ import org.apache.hadoop.fs.Path;
 
 import java.io.*;
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.StringTokenizer;
+import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.*;
 
 public class MainGraphPartitioner implements Runnable, Serializable {
     private String inputGraphPath;
-    private String dataPartitionDir;
+    protected String dataPartitionDir;
     private int numPartitions;
     private ArrayList<Integer> vertexIndex = new ArrayList<>();
     private ArrayList<Integer> edgeIndex = new ArrayList<>();
     private long verticesIndexLabel;
-    private HashIntObjMap<IntArrayList> reverseVertexlabel;
-    private HashIntIntMap reverseVertexlabelCount;
+    private HashMap<Integer, ArrayList<Integer>> reverseVertexlabel;
+    private HashMap<Integer, Integer> reverseVertexlabelCount;
     static final sun.misc.Unsafe UNSAFE;
     public long totalVertices;
     public long totalEdges;
@@ -38,39 +35,52 @@ public class MainGraphPartitioner implements Runnable, Serializable {
                     "get unsafe", e);
         }
     }
+    protected String partitionedPath;
+
     final static long INT_SIZE_IN_BYTES = 4;
 
     public MainGraphPartitioner(SparkConfiguration config) {
         inputGraphPath = config.getString(config.SEARCH_MAINGRAPH_PATH,config.SEARCH_MAINGRAPH_PATH_DEFAULT);
+        partitionedPath = config.getString(config.PARTITION_PATH, "");
         dataPartitionDir = config.getString(config.DATA_PARTITION_DIR,"");
         numPartitions = config.numPartitions();
         totalVertices = config.getInteger(config.SEARCH_NUM_VERTICES, config.SEARCH_NUM_VERTICES_DEFAULT);
         totalEdges = config.getInteger(config.SEARCH_NUM_EDGES, config.SEARCH_NUM_EDGES_DEFAULT);
         verticesIndexLabel = UNSAFE.allocateMemory((totalVertices + 1L) * INT_SIZE_IN_BYTES);
-        reverseVertexlabel = HashIntObjMaps.newMutableMap();
-        reverseVertexlabelCount = HashIntIntMaps.newMutableMap();
-        try {
-            FileUtils.cleanDirectory(new File(dataPartitionDir));
-        } catch(IOException e){
+        reverseVertexlabel = new HashMap<>();
+        reverseVertexlabelCount = new HashMap<>();
+        try{
+            setPartitionDir();
+        } catch(URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
+        File partitionDir = new File(dataPartitionDir);
+        if(!partitionDir.exists()) {
+            partitionDir.mkdir();
+        } else {
+            try {
+                FileUtils.cleanDirectory(partitionDir);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        try{
+            String currPath = new File(MainGraphPartitioner.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getPath();
+            System.out.println("Current class path for partitioner: " + currPath);
+        } catch(URISyntaxException e) {
             throw new RuntimeException(e);
         }
     }
 
-    public MainGraphPartitioner() {
-        //Created for testing
-        inputGraphPath = "hdfs://localhost:8020/input/citeseer.graph";
-        dataPartitionDir = "/Users/ambermadvariya/src/Arabesque/data/partitions/";
-        numPartitions = 4;
-        totalVertices = 3312;
-        totalEdges = 9072;
-        verticesIndexLabel = UNSAFE.allocateMemory((totalVertices + 1L) * INT_SIZE_IN_BYTES);
-        reverseVertexlabel = HashIntObjMaps.newMutableMap();
-        reverseVertexlabelCount = HashIntIntMaps.newMutableMap();
-        try {
-            FileUtils.cleanDirectory(new File(dataPartitionDir));
-        } catch(IOException e){
-            throw new RuntimeException(e);
-        }
+    private void setPartitionDir() throws URISyntaxException {
+        String currPath = new File(MainGraphPartitioner.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getPath();
+        ArrayList<String> splitPath = new ArrayList<>(Arrays.asList(currPath.split("/")));
+        if(splitPath.size() < 2) { throw new RuntimeException("Something wrong with JAR path: " + currPath); }
+        splitPath.remove(splitPath.size()-1);
+        splitPath.remove(splitPath.size()-1);
+        splitPath.add("");
+        dataPartitionDir = String.join("/",splitPath) + dataPartitionDir + "/";
+        System.out.println("Data partition dir: " + dataPartitionDir);
     }
 
     private void setVertexLabel(long index, int value) {
@@ -94,7 +104,7 @@ public class MainGraphPartitioner implements Runnable, Serializable {
             // should not invoke this method if we don't look for a specific label
             return null;
         }
-        return reverseVertexlabel.get(vertexLabel);
+        return new IntArrayList(reverseVertexlabel.get(vertexLabel));
     }
 
     public long getNumberVerticesWithLabel(int label) {
@@ -107,17 +117,24 @@ public class MainGraphPartitioner implements Runnable, Serializable {
     }
 
 
-    public InputStream readFile(String path) throws IOException {
-        Path filePath = new Path(path);
-        FileSystem fs = filePath.getFileSystem(new org.apache.hadoop.conf.Configuration());
-        return fs.open(filePath);
+    protected InputStream readFile(String path) {
+        try {
+            Path filePath = new Path(path);
+            FileSystem fs = filePath.getFileSystem(new org.apache.hadoop.conf.Configuration());
+            return fs.open(filePath);
+        } catch(IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
-    private void copyToHDFS(String path, String hdfsPath) {
+    protected void copyToDataStore(int fileIdx) {
         try {
+            String path = dataPartitionDir + fileIdx + ".txt";
+            String hdfsPath = partitionedPath + fileIdx;
             Path targetPath = new Path(hdfsPath);
             FileSystem fs = targetPath.getFileSystem(new org.apache.hadoop.conf.Configuration());
             fs.copyFromLocalFile(new Path(path), targetPath);
+            boolean deleted = Files.deleteIfExists(new File(path).toPath());
         } catch(IOException e) {
             throw new RuntimeException(e);
         }
@@ -143,30 +160,11 @@ public class MainGraphPartitioner implements Runnable, Serializable {
         throw new RuntimeException("Edge index out of bounds");
     }
 
-    public InputStream getFileStream(int idx) {
-        try {
-            String fileName = inputGraphPath + "-" + idx;
-            Path filePath = new Path(fileName);
-            FileSystem fs = filePath.getFileSystem(new org.apache.hadoop.conf.Configuration());
-            return fs.open(filePath);
-        }
-        catch(IOException e) {
-            System.out.println("invalid fileIdx: " + idx);
-            throw new RuntimeException(e);
-        }
-    }
 
-    private int getPartitionCount() throws IOException {
-        BufferedReader reader = new BufferedReader(new InputStreamReader(readFile(inputGraphPath)));
-        String line = reader.readLine();
-        int count = 1;
-        while (line != null) {
-            count++;
-            line = reader.readLine();
-        }
-        int partitionCount = count/numPartitions;
+    private int getPartitionCount() {
+        int partitionCount = (int)totalVertices/numPartitions;
         if(partitionCount == 0) {
-            partitionCount = count;
+            partitionCount = (int)totalVertices;
             numPartitions = 1;
         }
         return partitionCount;
@@ -180,6 +178,7 @@ public class MainGraphPartitioner implements Runnable, Serializable {
         }
         return numEdges;
     }
+
     private PrintWriter getFileWriterByIdx(Integer fileIdx) {
         try {
             String fileName = dataPartitionDir + fileIdx.toString() + ".txt";
@@ -229,10 +228,15 @@ public class MainGraphPartitioner implements Runnable, Serializable {
                 StringTokenizer tokenizer = new StringTokenizer(line);
                 int vertexId = Integer.parseInt(tokenizer.nextToken());
                 int vertexLabel = Integer.parseInt(tokenizer.nextToken());
-                reverseVertexlabelCount.addValue(vertexLabel,1,0);
-                IntArrayList list = reverseVertexlabel.get(vertexLabel);
+                if(!reverseVertexlabelCount.containsKey(vertexLabel)) { reverseVertexlabelCount.put(vertexLabel,0); }
+                else {
+                    int count = reverseVertexlabelCount.get(vertexLabel);
+                    count++;
+                    reverseVertexlabelCount.put(vertexLabel, count);
+                }
+                ArrayList<Integer> list = reverseVertexlabel.get(vertexLabel);
                 if (list == null){
-                    list = new IntArrayList(1024);
+                    list = new ArrayList<>();
                     reverseVertexlabel.put(vertexLabel,list);
                 }
                 list.add(vertexId);
@@ -246,6 +250,7 @@ public class MainGraphPartitioner implements Runnable, Serializable {
                 if(currCount%partitionCount == 0) {
                     out.close();
                     addGraphMetaData(numVertices, numEdges, vertexOffset, edgeOffset, fileIdx);
+                    copyToDataStore(fileIdx);
                     vertexIndex.add(currCount - 1);
                     edgeIndex.add(edgeCount);
                     if(line!=null) {
@@ -271,11 +276,6 @@ public class MainGraphPartitioner implements Runnable, Serializable {
 
             System.out.println(vertexIndex.toString() + " " + edgeIndex.toString());
 
-            for(int i = 0; i < numPartitions; i++) {
-                String path = dataPartitionDir + i + ".txt";
-                String hdfsPath = inputGraphPath + "-" + i;
-                copyToHDFS(path, hdfsPath);
-            }
         } catch(IOException e) {
             throw new RuntimeException(e);
         }

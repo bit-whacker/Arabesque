@@ -4,7 +4,6 @@ import com.amazonaws.auth.profile.ProfileCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.*;
-import javafx.util.Pair;
 
 import java.io.File;
 import java.io.InputStream;
@@ -15,8 +14,8 @@ import java.util.List;
 
 public class AwsS3Utils implements Serializable {
     private static final AmazonS3 s3Client = AmazonS3ClientBuilder.standard()
-                .withCredentials(new ProfileCredentialsProvider())
-            .build();;
+                .withCredentials(new ProfileCredentialsProvider()).withForceGlobalBucketAccessEnabled(true)
+            .build();
 
     public AwsS3Utils() {
         /*

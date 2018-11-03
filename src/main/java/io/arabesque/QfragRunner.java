@@ -96,7 +96,7 @@ public class QfragRunner implements Tool {
         queryGraphPath = config.getString(config.SEARCH_QUERY_GRAPH_PATH,config.SEARCH_QUERY_GRAPH_PATH_DEFAULT);
 
         MainGraphPartitioner partitioner;
-        if(inputGraphPath.contains(config.S3_SUBSTR)) {
+        if(inputGraphPath.startsWith(config.S3_SUBSTR)) {
             partitioner = new AwsS3Partitioner(config);
         } else {
             partitioner = new MainGraphPartitioner(config);

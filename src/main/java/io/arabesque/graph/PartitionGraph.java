@@ -18,7 +18,6 @@ import java.util.HashMap;
 public class PartitionGraph implements SearchGraph, Externalizable {
     private HashMap<Integer, UnsafeCSRGraphSearch> graphMap;
     private MainGraphPartitioner partitioner;
-    private String inputGraphPath;
     private Configuration config;
     private int numLabels;
     private boolean fastNeighbors;
@@ -27,7 +26,6 @@ public class PartitionGraph implements SearchGraph, Externalizable {
     public PartitionGraph(Configuration config) {
         graphMap = new HashMap<>();
         partitioner = config.getPartitioner();
-        inputGraphPath = config.getString(config.SEARCH_MAINGRAPH_PATH,config.SEARCH_MAINGRAPH_PATH_DEFAULT);
         numLabels = config.getInteger(config.SEARCH_NUM_LABELS, config.SEARCH_NUM_LABELS_DEFAULT);
         this.config = config;
         fastNeighbors = config.getBoolean(config.SEARCH_FASTNEIGHBORS, config.SEARCH_FASTNEIGHBORS_DEFAULT);
@@ -38,7 +36,7 @@ public class PartitionGraph implements SearchGraph, Externalizable {
         String path = partitionedPath + partition;
         UnsafeCSRGraphSearch dataGraph;
         try {
-            if (path.contains(config.S3_SUBSTR)) {
+            if (path.startsWith(config.S3_SUBSTR)) {
                 dataGraph = new UnsafeCSRGraphSearch(path, true);
             } else {
                 dataGraph = new UnsafeCSRGraphSearch(new org.apache.hadoop.fs.Path(path), true);

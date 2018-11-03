@@ -1,11 +1,11 @@
-search_input_graph_path: s3://qfrag/graphs/citeseer.graph
+search_input_graph_path: s3a://qfrag/graphs/citeseer.graph
 search_output_path: output-search
 search_injective: true
 search_outliers_pct: 0.001
 search_outliers_min_matches: 100
 search_fastNeighbors: true
 search_write_in_binary: true
-search_query_graph_path: s3://qfrag/queries/Q1-citeseer
+search_query_graph_path: s3a://qfrag/queries/Q1-citeseer
 search_output_active: false
 search_num_vertices: 3312
 search_num_edges: 9072
@@ -13,4 +13,4 @@ search_num_labels: 6
 log_level: fatal
 system_type: search
 data_partitions_dir: data/partitions
-partition_path: s3://qfrag/partitioned_graph/
+partition_path: s3a://qfrag/partitioned_graph/

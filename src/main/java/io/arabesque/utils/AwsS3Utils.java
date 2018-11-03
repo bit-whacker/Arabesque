@@ -26,26 +26,34 @@ public class AwsS3Utils implements Serializable {
         */
     }
 
-    private static Pair<String, String> getPathInfo(String path) {
+    private static String[] getPathInfo(String path) {
         path = path.replace("s3://","");
+        path = path.replaceAll("s3.://","");
         String[] pathInfo = path.split("/");
         String bucketName = pathInfo[0];
         String key = String.join("/", Arrays.copyOfRange(pathInfo,1,pathInfo.length));
-        return new Pair<>(bucketName, key);
+        String[] result = new String[2];
+        result[0] = bucketName;
+        result[1] = key;
+        return result;
     }
 
     public InputStream readFromPath(String s3Path) {
-        Pair<String, String> pathInfo = getPathInfo(s3Path);
-        String bucketName = pathInfo.getKey();
-        String key = pathInfo.getValue();
-        S3Object fullObject = s3Client.getObject(new GetObjectRequest(bucketName, key));
-        return fullObject.getObjectContent();
+        String[] pathInfo = getPathInfo(s3Path);
+        String bucketName = pathInfo[0];
+        String key = pathInfo[1];
+        try {
+            S3Object fullObject = s3Client.getObject(new GetObjectRequest(bucketName, key));
+            return fullObject.getObjectContent();
+        }catch (Exception e) {
+            throw new RuntimeException("Error reading path: " + s3Path);
+        }
     }
 
     public void uploadFile(String path, String s3Path) {
-        Pair<String, String> pathInfo = getPathInfo(s3Path);
-        String bucketName = pathInfo.getKey();
-        String key = pathInfo.getValue();
+        String[] pathInfo = getPathInfo(s3Path);
+        String bucketName = pathInfo[0];
+        String key = pathInfo[1];
         PutObjectRequest request = new PutObjectRequest(bucketName, key, new File(path));
         s3Client.putObject(request);
     }
@@ -55,9 +63,9 @@ public class AwsS3Utils implements Serializable {
     }
 
     public List<String> listFiles(String path) {
-        Pair<String, String> pathInfo = getPathInfo(path);
-        String bucketName = pathInfo.getKey();
-        String key = pathInfo.getValue();
+        String[] pathInfo = getPathInfo(path);
+        String bucketName = pathInfo[0];
+        String key = pathInfo[1];
         if(path.substring(path.length()-1).equals("/")) { key = key + "/"; }
         ListObjectsV2Request req = new ListObjectsV2Request().withBucketName(bucketName).withPrefix(key).withDelimiter("/");
         List<String> result = new LinkedList<>();
@@ -75,15 +83,18 @@ public class AwsS3Utils implements Serializable {
         return result;
     }
 
-    public void deleteFile(String path) {
-        Pair<String, String> pathInfo = getPathInfo(path);
-        String bucketName = pathInfo.getKey();
-        String key = pathInfo.getValue();
+    public void deleteFile(String s3Path) {
+        String[] pathInfo = getPathInfo(s3Path);
+        String bucketName = pathInfo[0];
+        String key = pathInfo[1];
         s3Client.deleteObject(new DeleteObjectRequest(bucketName, key));
     }
 
     public static void main(String args[]) {
-        AwsS3Utils s3Object = new AwsS3Utils();
-        s3Object.listFiles("s3://qfrag/graphs/");
+        String path = "s3://qfrag/graphs";
+        path = path.replaceAll("s3.://","");
+        System.out.println(path);
+        //AwsS3Utils s3Object = new AwsS3Utils();
+        //s3Object.listFiles("s3://qfrag/graphs/");
     }
 }

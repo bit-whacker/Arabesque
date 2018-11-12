@@ -43,7 +43,10 @@ public class MainGraphPartitioner implements Runnable, Serializable {
         inputGraphPath = config.getString(config.SEARCH_MAINGRAPH_PATH,config.SEARCH_MAINGRAPH_PATH_DEFAULT);
         partitionedPath = config.getString(config.PARTITION_PATH, "");
         dataPartitionDir = config.getString(config.DATA_PARTITION_DIR,"");
-        numPartitions = config.numPartitions();
+        int numWorkers = config.getInteger(config.NUM_WORKERS, 1);
+        int numThreads = config.getInteger(config.NUM_THREADS,1);
+        numPartitions = numWorkers*numThreads;
+        System.out.println("Number of partitions: " + numPartitions);
         totalVertices = config.getInteger(config.SEARCH_NUM_VERTICES, config.SEARCH_NUM_VERTICES_DEFAULT);
         totalEdges = config.getInteger(config.SEARCH_NUM_EDGES, config.SEARCH_NUM_EDGES_DEFAULT);
         verticesIndexLabel = UNSAFE.allocateMemory((totalVertices + 1L) * INT_SIZE_IN_BYTES);
@@ -87,7 +90,6 @@ public class MainGraphPartitioner implements Runnable, Serializable {
         if (index > totalVertices || index < 0 ){
             throw new RuntimeException("Above limit vertex label: " + index + ", numVertices = " + totalVertices);
         }
-
         UNSAFE.putInt(verticesIndexLabel + (index*INT_SIZE_IN_BYTES), value);
     }
 
@@ -141,33 +143,42 @@ public class MainGraphPartitioner implements Runnable, Serializable {
     }
 
     public int getIdxByVertex(int vertexId) {
+        if(vertexId >= totalVertices) { throw new RuntimeException("Vertex index out of bounds: " + vertexId); }
         for(int i = 0; i < vertexIndex.size(); i++) {
             int partition = vertexIndex.get(i);
-            if(partition >= vertexId) {
+            if(partition > vertexId) {
                 return i;
             }
         }
-        throw new RuntimeException("Vertex index out of bounds");
+        return numPartitions-1;
+
     }
 
     public int getIdxByEdge(int edgeId) {
+        if(edgeId >= totalEdges) { throw new RuntimeException("edge index out of bounds: " + edgeId); }
         for(int i = 0; i < edgeIndex.size(); i++) {
             int partition = edgeIndex.get(i);
-            if(partition >= edgeId) {
+            if(partition > edgeId) {
                 return i;
             }
         }
-        throw new RuntimeException("Edge index out of bounds");
+        return numPartitions-1;
     }
 
 
     private int getPartitionCount() {
-        int partitionCount = (int)totalVertices/numPartitions;
-        if(partitionCount == 0) {
-            partitionCount = (int)totalVertices;
-            numPartitions = 1;
+        if(totalVertices%numPartitions==0) {
+            return (int)totalVertices/numPartitions;
         }
-        return partitionCount;
+        else {
+            int partitionCount = (int)Math.ceil((double)totalVertices /(double)numPartitions);
+            if (partitionCount == 0 || partitionCount == 1) {
+                partitionCount = (int) totalVertices;
+                numPartitions = 1;
+            }
+            System.out.println("Partition count is: " + partitionCount);
+            return partitionCount;
+        }
     }
 
     private int getEdgeCount(StringTokenizer tokenizer) {
@@ -212,13 +223,13 @@ public class MainGraphPartitioner implements Runnable, Serializable {
             int partitionCount = getPartitionCount();
             BufferedReader reader = new BufferedReader(new InputStreamReader(readFile(inputGraphPath)));;
             String line = reader.readLine();
-            int currCount = 1;
+            int totalVertices = 0;
             int fileIdx = 0;
-            int numVertices = 0;
-            int numEdges = 0;
+            int partitionVertices = 0;
+            int partitionEdges = 0;
             int vertexOffset = 0;
             int edgeOffset = 0;
-            int edgeCount = -1;
+            int totalEdges = 0;
             PrintWriter out = getFileWriterByIdx(fileIdx);
             while (line != null){
                 if (line.startsWith("#")) {
@@ -240,38 +251,39 @@ public class MainGraphPartitioner implements Runnable, Serializable {
                     reverseVertexlabel.put(vertexLabel,list);
                 }
                 list.add(vertexId);
-                numVertices++;
+                totalVertices++;
+                partitionVertices++;
                 int currEdges = getEdgeCount(tokenizer);
-                numEdges += currEdges;
-                edgeCount += currEdges;
+                partitionEdges += currEdges;
+                totalEdges += currEdges;
                 setVertexLabel(vertexId, vertexLabel);
                 out.println(line);
                 line = reader.readLine();
-                if(currCount%partitionCount == 0) {
+                if(totalVertices%partitionCount == 0) {
                     out.close();
-                    addGraphMetaData(numVertices, numEdges, vertexOffset, edgeOffset, fileIdx);
+                    addGraphMetaData(partitionVertices, partitionEdges, vertexOffset, edgeOffset, fileIdx);
                     copyToDataStore(fileIdx);
-                    vertexIndex.add(currCount - 1);
-                    edgeIndex.add(edgeCount);
+                    vertexIndex.add(totalVertices);
+                    edgeIndex.add(totalEdges);
                     if(line!=null) {
-                        vertexOffset = currCount;
-                        edgeOffset = edgeCount;
-                        numEdges = 0;
-                        numVertices = 0;
+                        vertexOffset = totalVertices;
+                        edgeOffset = totalEdges;
+                        partitionEdges = 0;
+                        partitionVertices = 0;
                         fileIdx += 1;
                         out = getFileWriterByIdx(fileIdx);
                     } else {
                         break;
                     }
                 }
-                currCount += 1;
             }
 
-            if(currCount%partitionCount!=0) {
+            if(totalVertices%partitionCount!=0) {
                 out.close();
-                addGraphMetaData(numVertices, numEdges, vertexOffset, edgeOffset, fileIdx);
-                edgeIndex.add(edgeCount);
-                vertexIndex.add(currCount - 2);
+                addGraphMetaData(partitionVertices, partitionEdges, vertexOffset, edgeOffset, fileIdx);
+                copyToDataStore(fileIdx);
+                edgeIndex.add(totalEdges);
+                vertexIndex.add(totalVertices);
             }
 
             System.out.println(vertexIndex.toString() + " " + edgeIndex.toString());

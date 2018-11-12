@@ -269,7 +269,6 @@ public class BasicMainGraph extends AbstractMainGraph {
     }
 //*
     protected void readFromInputStream(InputStream is) throws IOException {
-        System.out.println("BasicMainGraph.readFromInputStream");
         try {
             BufferedReader reader = new BufferedReader(new InputStreamReader(new BOMInputStream(is)));
 

@@ -163,7 +163,7 @@ public class UnsafeCSRMainGraph extends AbstractMainGraph {
     public int getEdgeDst(int index){
         index = index - (int)edgeOffset;
         if (index>=numEdges || index < 0 ){
-            throw new RuntimeException("Above limit edges: "+index);
+            throw new RuntimeException("Above limit edges: " + index + " edgeOffset: " + edgeOffset + " numEdges: " + numEdges);
         }
 
         return UNSAFE.getInt(edgesIndex+(index*INT_SIZE_IN_BYTES));
@@ -272,6 +272,7 @@ public class UnsafeCSRMainGraph extends AbstractMainGraph {
         String line = reader.readLine();
         boolean firstLine = true;
         boolean startLine = true;
+        int currVertices = 0;
 
         while (line != null) {
             StringTokenizer tokenizer = new StringTokenizer(line);
@@ -284,6 +285,7 @@ public class UnsafeCSRMainGraph extends AbstractMainGraph {
                 }
             }
             int vertexId = parse_vertex(tokenizer, prev_vertex_id,edges_position);
+            currVertices += 1;
             if(startLine) {
                 startLine = false;
             }
@@ -296,6 +298,7 @@ public class UnsafeCSRMainGraph extends AbstractMainGraph {
             }
             line = reader.readLine();
         }
+        if(numVertices!=currVertices) { throw new RuntimeException("num vertices not equal. expected: " + numVertices + " actual: " + currVertices); }
         System.out.println("Num edges parsed: " + (edges_position - edgeOffset));
         reader.close();
         // Add the last one, so that we don't care about boundaries of edges.

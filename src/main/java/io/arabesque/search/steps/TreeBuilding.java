@@ -118,11 +118,12 @@ public class TreeBuilding
 
         CrossEdgeMatchingLogic crossEdgeMatchingLogic = new CrossEdgeMatchingLogic(dataGraph, queryGraph, out);
 
-        IntArrayList candidates = new IntArrayList();
+        IntArrayList candidates = queryGraph.getRootMatchingVertices(dataGraph); //new IntArrayList();
+        candidates = dataGraph.filterVerticesByPartition(candidates, partitionId);
 
         // ###### Create initial list of candidates ######
 
-        int rootsCount = pickLocalCandidates(partitionId, dataGraph, queryGraph, candidates);
+        int rootsCount = candidates.size(); //pickLocalCandidates(partitionId, dataGraph, queryGraph, candidates);
         IntIterator rootsIterator = candidates.iterator();
 
         if (rootsCount == 0) {
@@ -188,6 +189,20 @@ public class TreeBuilding
                     ThreadOutputHandler.closeThreadOutput(out);
                     return sendOutliers(partitionId, heavyTrees);
                 }
+
+                if(currentSearchDataTree.rootDataVertexId == 3311) {
+                    System.out.println("For 3311: " + currentSearchDataTree.toString());
+                    System.out.println("For label 0: " + dataGraph.getNeighborhoodSizeWithLabel(3311,0));
+                    System.out.println("For label 2: " + dataGraph.getNeighborhoodSizeWithLabel(3311,2));
+                    IntIterator tmpIterator = dataGraph.createNeighborhoodSearchIterator();
+                    dataGraph.setIteratorForNeighborsWithLabel(3311,
+                            2,
+                            tmpIterator);
+                    while(tmpIterator.hasNext()) {
+                        System.out.println("next vertex id with label 0: " + tmpIterator.nextInt());
+                    }
+                }
+
             } while (currentSearchDataTree.size() == 0);
         }
     }

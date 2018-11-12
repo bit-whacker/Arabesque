@@ -10,15 +10,15 @@ import time
 
 tlp = ['0.0']
 tle = ['0.0005', '0.002', '0.005', '0.01']
-queriesAnchored = range(1, 9)
+queriesAnchored = range(1, 2)
 queriesUnanchored = range(5, 8)
 
 #### configurations contain tuple of [workloads], [queriesAnchored], [queriesUnanchored], [outliers_pcts], numServers, numPartitionsPerServer, outputActive
 configurations = [
-    (['mico','patent','youtube'], queriesAnchored, [], ['0.1'], 10, 32, True)
+    (['citeseer'], queriesAnchored, [], ['0.1'], 10, 32, True)
 ]
 
-local = False
+local = True
 
 fastNeighbors = 'true'
 #outputBinary = 'true'
@@ -29,6 +29,11 @@ minMatches = '0'
 
 doRun = True
 doVerify = True
+
+s3Input = "s3a://qfrag/graphs/"
+s3Query = "s3a://qfrag/queries/"
+dataPartitionDir = "data/partitions"
+s3Partition = "s3a://qfrag/partitioned_graph/"
 
 ################ DON'T TOUCH THESE VARIABLES ########
 
@@ -52,8 +57,8 @@ arrays = ['time_cost', 'time_embeddings', 'time_edges']
 
 series = ['metrics_pertree']
 
-numServers = 0
-numPartitionsPerServer = 0
+numServers = 1
+numPartitionsPerServer = 6
 outputActive = True
 
 
@@ -81,7 +86,7 @@ def writeClusterYaml(numServers, numPartitionsPerServer, outputActive):
 
 def writeAppYaml(workload, queryId, outliers_pct, minMatches, anchored):
     yamlfile = open('search-configs.yaml', 'w')
-    yamlfile.write('search_input_graph_path: ' + workload + '.unsafe.graph\n')
+    yamlfile.write('search_input_graph_path: ' + s3Input + workload + '.unsafe.graph\n')
     yamlfile.write('search_output_path: output-search\n')
     yamlfile.write('search_injective: true\n')
     # yamlfile.write('arabesque.graph.edge_labelled: false\n')
@@ -90,9 +95,11 @@ def writeAppYaml(workload, queryId, outliers_pct, minMatches, anchored):
     yamlfile.write('search_outliers_min_matches: ' + minMatches + '\n')
     yamlfile.write('search_fastNeighbors: ' + fastNeighbors + '\n')
     yamlfile.write('search_write_in_binary: ' + outputBinary + '\n')
+    yamlfile.write('system_type: search\n')
+    yamlfile.write('log_level: fatal\n')
 
     if anchored:
-        yamlfile.write('search_query_graph_path: Q' + str(queryId) + '-' + workload + '\n')
+        yamlfile.write('search_query_graph_path: ' + s3Query + 'Q' + str(queryId) + '-' + workload + '\n')
     else:
         yamlfile.write('search_query_graph_path: Q' + str(queryId) + 'u\n')
 
@@ -135,7 +142,8 @@ def writeAppYaml(workload, queryId, outliers_pct, minMatches, anchored):
         yamlfile.write('search_num_vertices: 3072441\n')
         yamlfile.write('search_num_edges: 234369798\n')
         yamlfile.write('search_num_labels: 1\n')
-
+    yamlfile.write('data_partitions_dir: ' + dataPartitionDir + '\n')
+    yamlfile.write('partition_path: ' + s3Partition + '\n')
     yamlfile.close()
 
 ################ RUN EXPERIMENTS ################

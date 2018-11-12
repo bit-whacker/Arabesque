@@ -89,7 +89,7 @@ public class UnsafeCSRGraphSearch extends UnsafeCSRMainGraph
     private int getVertexNeighborLabelPos(int index, int index2) {
         index = index - (int)vertexOffset;
         if (index>numVertices || index2 >= numLabels || index < 0 || index2 <0){
-            throw new RuntimeException("Accessing above the limits (case 1):" + index + " " + index2);
+            throw new RuntimeException("Accessing above the limits (case 1):" + index + " " + index2 + " " + vertexOffset);
         }
         if (index == numVertices && index2 > 0){
             throw new RuntimeException("Accessing above the limits (case 2):" + index + " " + index2);
@@ -98,6 +98,9 @@ public class UnsafeCSRGraphSearch extends UnsafeCSRMainGraph
         return UNSAFE.getInt(vertexNeighLabelPos + (index * numLabels * INT_SIZE_IN_BYTES +
                                                     index2 * INT_SIZE_IN_BYTES));
     }
+
+    public long getTotalVertices() {return this.numVertices;}
+    public long getVertexOffset() {return this.vertexOffset;}
 
     @Override
     protected void readFromInputStream(InputStream is) throws IOException {
@@ -234,7 +237,7 @@ public class UnsafeCSRGraphSearch extends UnsafeCSRMainGraph
         vertexNeighLabelPos = UNSAFE.allocateMemory((numVertices*numLabels+1L) * INT_SIZE_IN_BYTES);
         int neigh=0;
         for (int i= (int)vertexOffset; i < (int)vertexOffset + numVertices; i++){
-            neigh         = getVertexPos(i);
+            neigh = getVertexPos(i);
             int neigh_end = getVertexPos(i+1);
 
             HashIntIntMap map = HashIntIntMaps.newMutableMap();
@@ -243,6 +246,7 @@ public class UnsafeCSRGraphSearch extends UnsafeCSRMainGraph
             while (neigh < neigh_end) {
                 final int neigh_id = getEdgeDst(neigh);
                 int label = partitioner.getVertexLabel(neigh_id);
+                if(i==3311 && neigh_id==3008) { System.out.println("In fast_end_reading prevLabel:" + neigh); }
                 map.put(neigh_id,label);
 
                 if (prevLabel != label && label > 0){

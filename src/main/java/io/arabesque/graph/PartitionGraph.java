@@ -83,6 +83,19 @@ public class PartitionGraph implements SearchGraph, Externalizable {
         return partitioner.getVerticesWithLabel(vertexLabel);
     }
 
+    public IntArrayList filterVerticesByPartition(IntArrayList vertexList, int partition) {
+        IntArrayList filteredVertices = new IntArrayList();
+        UnsafeCSRGraphSearch graph = graphMap.get(partition);
+        long start = graph.getVertexOffset();
+        long end = start + graph.getTotalVertices();
+        for(int vertex: vertexList) {
+            if(vertex >= start && vertex < end) {
+                filteredVertices.add(vertex);
+            }
+        }
+        return filteredVertices;
+    }
+
     @Override
     public IntIterator createNeighborhoodSearchIterator() {
         return new PartitionedIterator(this);
@@ -348,7 +361,10 @@ public class PartitionGraph implements SearchGraph, Externalizable {
 
         @Override
         public int nextInt() {
-            return graph.getEdgeDst(pos++);
+            int vertexId = graph.getEdgeDst(pos);
+            if(vertexId == 3008) {System.out.println("In iterator: " + pos);}
+            ++pos;
+            return vertexId;
         }
 
         @Override

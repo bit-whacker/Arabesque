@@ -88,10 +88,12 @@ public class QfragRunner implements Tool {
         LOG.fatal("Setting log level to " + log_level);
         LOG.setLevel(Level.toLevel(log_level));
         sc.setLogLevel(log_level.toUpperCase());
-        config.setIfUnset ("num_partitions", sc.defaultParallelism());
+        //config.setIfUnset ("num_partitions", sc.defaultParallelism());
 
         config.setHadoopConfig (sc.hadoopConfiguration());
-        numPartitions = config.numPartitions();
+        int numWorkers = config.getInteger(config.NUM_WORKERS, 1);
+        int numThreads = config.getInteger(config.NUM_THREADS,1);
+        numPartitions = numWorkers*numThreads;
         inputGraphPath = config.getString(config.SEARCH_MAINGRAPH_PATH,config.SEARCH_MAINGRAPH_PATH_DEFAULT);
         queryGraphPath = config.getString(config.SEARCH_QUERY_GRAPH_PATH,config.SEARCH_QUERY_GRAPH_PATH_DEFAULT);
 
@@ -110,12 +112,10 @@ public class QfragRunner implements Tool {
         if(queryGraphPath == null)
             throw new RuntimeException("Query graph was not set in the config file");
         QueryGraph queryGraph = new QueryGraph(queryGraphPath);
-
+        queryGraph.buildTree();
         queryGraphBuildingTime = System.currentTimeMillis() - queryGraphBuildingTime;
 
         config.setQueryGraph(queryGraph);
-
-        queryGraph.buildTree();
 
         // This also broadcasts the data graph, which is in the closure of the configuration
         configBC = sc.broadcast(config);
@@ -220,7 +220,7 @@ public class QfragRunner implements Tool {
 
         String dataGraphPath = config.getString(config.SEARCH_MAINGRAPH_PATH,config.SEARCH_MAINGRAPH_PATH_DEFAULT);
         String queryGraphPath = config.getString(config.SEARCH_QUERY_GRAPH_PATH,config.SEARCH_QUERY_GRAPH_PATH_DEFAULT);
-        int numThreads = config.numPartitions();
+        int numThreads = numPartitions;
 
         // Print fine grained computation time and data
         LOG.fatal("\n\n@DEBUG Stats-Results: {"
@@ -246,6 +246,7 @@ public class QfragRunner implements Tool {
         // ######### STEP 1 ##########
 
         // create the partitions RDD
+
         JavaRDD globalRDD = sc.parallelize(new ArrayList<Tuple2<Integer, String>>(numPartitions), numPartitions).cache();
 
         globalRDD.setName("parallelize");

@@ -24,6 +24,7 @@
 # .idea/gradle.xml
 # .idea/libraries
 
+scripts/output-search/
 # Mongo Explorer plugin:
 # .idea/mongoSettings.xml
 

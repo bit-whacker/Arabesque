@@ -217,7 +217,6 @@ public abstract class AbstractMainGraph implements MainGraph {
         isEdgeLabelled = conf.isGraphEdgeLabelled();
         isMultiGraph = conf.isGraphMulti();
         isFloatLabel = conf.isFloatEdge();
-        System.out.println("Reading file: " + fileName);
         InputStream is = s3Object.readFromPath(fileName);
         BufferedReader reader = new BufferedReader(new InputStreamReader(is));
         setGraphMetaData(reader);

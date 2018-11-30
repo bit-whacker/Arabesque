@@ -10,7 +10,6 @@ import java.io.*;
 import java.lang.reflect.Field;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.*;
 
 public class MainGraphPartitioner implements Runnable, Serializable {
@@ -46,7 +45,6 @@ public class MainGraphPartitioner implements Runnable, Serializable {
         int numWorkers = config.getInteger(config.NUM_WORKERS, 1);
         int numThreads = config.getInteger(config.NUM_THREADS,1);
         numPartitions = numWorkers*numThreads;
-        System.out.println("Number of partitions: " + numPartitions);
         totalVertices = config.getInteger(config.SEARCH_NUM_VERTICES, config.SEARCH_NUM_VERTICES_DEFAULT);
         totalEdges = config.getInteger(config.SEARCH_NUM_EDGES, config.SEARCH_NUM_EDGES_DEFAULT);
         verticesIndexLabel = UNSAFE.allocateMemory((totalVertices + 1L) * INT_SIZE_IN_BYTES);
@@ -74,6 +72,43 @@ public class MainGraphPartitioner implements Runnable, Serializable {
             throw new RuntimeException(e);
         }
     }
+
+    public MainGraphPartitioner() {
+        inputGraphPath = "hdfs://localhost:8020/input/citeseer.graph";
+        partitionedPath = "hdfs://localhost:8020/input/partitions/";
+        dataPartitionDir = "data/partitions";
+        int numWorkers = 1;
+        int numThreads = 5;
+        numPartitions = numWorkers*numThreads;
+        totalVertices = 3312;
+        totalEdges = 9072;
+        verticesIndexLabel = UNSAFE.allocateMemory((totalVertices + 1L) * INT_SIZE_IN_BYTES);
+        reverseVertexlabel = new HashMap<>();
+        reverseVertexlabelCount = new HashMap<>();
+        try{
+            setPartitionDir();
+        } catch(URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
+        File partitionDir = new File(dataPartitionDir);
+        if(!partitionDir.exists()) {
+            partitionDir.mkdir();
+        } else {
+            try {
+                FileUtils.cleanDirectory(partitionDir);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        try{
+            String currPath = new File(MainGraphPartitioner.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getPath();
+            System.out.println("Current class path for partitioner: " + currPath);
+        } catch(URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public int getNumPartitions() {return numPartitions;}
 
     private void setPartitionDir() throws URISyntaxException {
         String currPath = new File(MainGraphPartitioner.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getPath();
@@ -142,6 +177,46 @@ public class MainGraphPartitioner implements Runnable, Serializable {
         }
     }
 
+    public int binarySearch(ArrayList<Integer> currList, int start, int end, int id) {
+        if(start==end) {return start;}
+        int mid = (start + end)/2;
+        if(mid + 1 < end) {
+            if(id >= currList.get(mid) && id < currList.get(mid + 1)) { return mid + 1; }
+        }
+        if(mid - 1 >= 0) {
+            if(id < currList.get(mid) && id >= currList.get(mid - 1)) { return mid; }
+        }
+        if(id < currList.get(mid)) {
+            return binarySearch(currList, start, mid, id);
+        }
+        else {
+            return binarySearch(currList, mid, end, id);
+        }
+    }
+
+
+    public int getIdxByVertex(int vertexId) {
+        if(vertexId >= totalVertices) { throw new RuntimeException("Vertex index out of bounds: " + vertexId); }
+        try {
+            return binarySearch(vertexIndex, 0, vertexIndex.size(), vertexId);
+        }
+        catch(StackOverflowError e) {
+            System.out.println("Vertex id: " + vertexId);
+            throw new RuntimeException(e);
+        }
+    }
+
+    public int getIdxByEdge(int edgeId) {
+        if(edgeId >= totalEdges) { throw new RuntimeException("Edge index out of bounds: " + edgeId); }
+        try {
+            return binarySearch(edgeIndex, 0, edgeIndex.size(), edgeId);
+        }
+        catch(StackOverflowError e) {
+            System.out.println("Edge id: " + edgeId);
+            throw new RuntimeException(e);
+        }
+    }
+    /*
     public int getIdxByVertex(int vertexId) {
         if(vertexId >= totalVertices) { throw new RuntimeException("Vertex index out of bounds: " + vertexId); }
         for(int i = 0; i < vertexIndex.size(); i++) {
@@ -155,7 +230,7 @@ public class MainGraphPartitioner implements Runnable, Serializable {
     }
 
     public int getIdxByEdge(int edgeId) {
-        if(edgeId >= totalEdges) { throw new RuntimeException("edge index out of bounds: " + edgeId); }
+        if(edgeId >= totalEdges) { throw new RuntimeException("Edge index out of bounds: " + edgeId); }
         for(int i = 0; i < edgeIndex.size(); i++) {
             int partition = edgeIndex.get(i);
             if(partition > edgeId) {
@@ -164,7 +239,7 @@ public class MainGraphPartitioner implements Runnable, Serializable {
         }
         return numPartitions-1;
     }
-
+    */
 
     private int getPartitionCount() {
         if(totalVertices%numPartitions==0) {
@@ -291,5 +366,36 @@ public class MainGraphPartitioner implements Runnable, Serializable {
         } catch(IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static void main(String args[]) {
+        MainGraphPartitioner graphObj = new MainGraphPartitioner();
+        Thread thread = new Thread(graphObj);
+        thread.start();
+        try {
+            thread.join();
+        } catch(InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        System.out.println(graphObj.getIdxByVertex(3311));
+        System.out.println(graphObj.getIdxByVertex(73));
+        /*
+        System.out.println(graphObj.testVertexByIndex(828));
+        System.out.println(graphObj.testVertexByIndex(3311));
+        System.out.println(graphObj.testVertexByIndex(0));
+        System.out.println(graphObj.testVertexByIndex(1523));
+        System.out.println(graphObj.testEdgeByIndex(780));
+        System.out.println(graphObj.testEdgeByIndex(6712));
+        System.out.println(graphObj.testEdgeByIndex(9071));
+        System.out.println(graphObj.testEdgeByIndex(0));
+        assert(graphObj.getIdxByVertex(0)==graphObj.testVertexByIndex(0));
+        assert(graphObj.getIdxByVertex(3311)==graphObj.testVertexByIndex(3311));
+        assert(graphObj.getIdxByVertex(828)==graphObj.testVertexByIndex(828));
+        assert(graphObj.getIdxByVertex(1523)==graphObj.testVertexByIndex(1523));
+        assert(graphObj.getIdxByEdge(780)==graphObj.testEdgeByIndex(780));
+        assert(graphObj.getIdxByEdge(6712)==graphObj.testEdgeByIndex(6712));
+        assert(graphObj.getIdxByEdge(9071)==graphObj.testEdgeByIndex(9071));
+        assert(graphObj.getIdxByEdge(0)==graphObj.testEdgeByIndex(0));
+        */
     }
 }

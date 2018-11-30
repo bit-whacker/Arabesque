@@ -7,16 +7,16 @@ import io.arabesque.conf.Configuration;
 import io.arabesque.utils.MainGraphPartitioner;
 import io.arabesque.utils.collection.IntArrayList;
 import io.arabesque.utils.collection.ReclaimableIntCollection;
+import org.apache.commons.collections4.map.LRUMap;
 
 import javax.annotation.Nonnull;
 import java.io.Externalizable;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
-import java.util.HashMap;
 
 public class PartitionGraph implements SearchGraph, Externalizable {
-    private HashMap<Integer, UnsafeCSRGraphSearch> graphMap;
+    private LRUMap<Integer, UnsafeCSRGraphSearch> graphMap;
     private MainGraphPartitioner partitioner;
     private Configuration config;
     private int numLabels;
@@ -24,12 +24,14 @@ public class PartitionGraph implements SearchGraph, Externalizable {
     private String partitionedPath;
 
     public PartitionGraph(Configuration config) {
-        graphMap = new HashMap<>();
         partitioner = config.getPartitioner();
+        double partitionRatio = config.getDouble(config.PARTITION_RATIO,0.5);
+        int numPartitions = (int)Math.floor(partitionRatio * partitioner.getNumPartitions());
         numLabels = config.getInteger(config.SEARCH_NUM_LABELS, config.SEARCH_NUM_LABELS_DEFAULT);
         this.config = config;
         fastNeighbors = config.getBoolean(config.SEARCH_FASTNEIGHBORS, config.SEARCH_FASTNEIGHBORS_DEFAULT);
         partitionedPath = config.getString(config.PARTITION_PATH, "");
+        graphMap = new LRUMap<>(numPartitions);
     }
 
     public void readPartition(int partition) {
@@ -52,7 +54,12 @@ public class PartitionGraph implements SearchGraph, Externalizable {
         int partitionId = 0;
         if(vertexFlag) { partitionId = partitioner.getIdxByVertex(vertexId); }
         else { partitionId = partitioner.getIdxByEdge(vertexId); }
-        if(!graphMap.containsKey(partitionId)) { readPartition(partitionId); }
+        if(!graphMap.containsKey(partitionId)) {
+            long startTime = System.currentTimeMillis();
+            readPartition(partitionId);
+            long deltaTime = System.currentTimeMillis() - startTime;
+            //System.out.println("Partition " + partitionId + " read time: " + deltaTime);
+        }
         return partitionId;
     }
 
@@ -362,7 +369,6 @@ public class PartitionGraph implements SearchGraph, Externalizable {
         @Override
         public int nextInt() {
             int vertexId = graph.getEdgeDst(pos);
-            if(vertexId == 3008) {System.out.println("In iterator: " + pos);}
             ++pos;
             return vertexId;
         }

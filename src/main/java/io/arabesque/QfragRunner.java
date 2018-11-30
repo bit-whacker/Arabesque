@@ -246,7 +246,6 @@ public class QfragRunner implements Tool {
         // ######### STEP 1 ##########
 
         // create the partitions RDD
-
         JavaRDD globalRDD = sc.parallelize(new ArrayList<Tuple2<Integer, String>>(numPartitions), numPartitions).cache();
 
         globalRDD.setName("parallelize");

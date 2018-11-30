@@ -299,7 +299,6 @@ public class UnsafeCSRMainGraph extends AbstractMainGraph {
             line = reader.readLine();
         }
         if(numVertices!=currVertices) { throw new RuntimeException("num vertices not equal. expected: " + numVertices + " actual: " + currVertices); }
-        System.out.println("Num edges parsed: " + (edges_position - edgeOffset));
         reader.close();
         // Add the last one, so that we don't care about boundaries of edges.
         setVertexPos(prev_vertex_id+1,edges_position);

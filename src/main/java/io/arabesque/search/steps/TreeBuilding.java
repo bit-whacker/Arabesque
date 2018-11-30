@@ -92,6 +92,7 @@ public class TreeBuilding
 
     @Override
     public Iterator<Tuple2<Integer, SearchDataTree>> call(Integer partitionId, Iterator<Tuple2<Integer, SearchDataTree>> v2) {
+        System.out.println("Current partition id: " + partitionId);
         Configuration conf = configBC.value();
         conf.initialize();
 
@@ -188,19 +189,6 @@ public class TreeBuilding
                     // finished all the work we have locally
                     ThreadOutputHandler.closeThreadOutput(out);
                     return sendOutliers(partitionId, heavyTrees);
-                }
-
-                if(currentSearchDataTree.rootDataVertexId == 3311) {
-                    System.out.println("For 3311: " + currentSearchDataTree.toString());
-                    System.out.println("For label 0: " + dataGraph.getNeighborhoodSizeWithLabel(3311,0));
-                    System.out.println("For label 2: " + dataGraph.getNeighborhoodSizeWithLabel(3311,2));
-                    IntIterator tmpIterator = dataGraph.createNeighborhoodSearchIterator();
-                    dataGraph.setIteratorForNeighborsWithLabel(3311,
-                            2,
-                            tmpIterator);
-                    while(tmpIterator.hasNext()) {
-                        System.out.println("next vertex id with label 0: " + tmpIterator.nextInt());
-                    }
                 }
 
             } while (currentSearchDataTree.size() == 0);

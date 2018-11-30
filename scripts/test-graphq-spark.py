@@ -3,19 +3,20 @@
 import sys
 import subprocess
 import time
+import glob
 
 ################ CONFIG VARIABLES ########
 
-# workloads = ['citeseer', 'mico', 'patent', 'youtube']
+workloads = ['citeseer'] #, 'mico', 'patent', 'youtube']
 
 tlp = ['0.0']
 tle = ['0.0005', '0.002', '0.005', '0.01']
-queriesAnchored = range(1, 2)
+queriesAnchored = range(1, 8)
 queriesUnanchored = range(5, 8)
 
 #### configurations contain tuple of [workloads], [queriesAnchored], [queriesUnanchored], [outliers_pcts], numServers, numPartitionsPerServer, outputActive
 configurations = [
-    (['citeseer'], queriesAnchored, [], ['0.1'], 10, 32, True)
+    (['citeseer'], queriesAnchored, [], ['0.1'], 1, 6, True)
 ]
 
 local = True
@@ -23,6 +24,7 @@ local = True
 fastNeighbors = 'true'
 #outputBinary = 'true'
 outputBinary = 'false'
+partitionRatio = '1.0'
 
 #minMatches = '100'
 minMatches = '0'
@@ -144,6 +146,7 @@ def writeAppYaml(workload, queryId, outliers_pct, minMatches, anchored):
         yamlfile.write('search_num_labels: 1\n')
     yamlfile.write('data_partitions_dir: ' + dataPartitionDir + '\n')
     yamlfile.write('partition_path: ' + s3Partition + '\n')
+    yamlfile.write('partition_ratio: ' + partitionRatio + '\n')
     yamlfile.close()
 
 ################ RUN EXPERIMENTS ################
@@ -154,7 +157,7 @@ def run (workload,queryId,outliers_pct,minMatches,anchored):
     if not anchored:
         query += 'u'
     print ("\n############## running workload " + workload + " on query " + query + " with outlier_pct " + outliers_pct + " ##############\n")
-    subprocess.call(["hdfs", "dfs", "-rm", "output-search/*"])
+    #subprocess.call(["hdfs", "dfs", "-rm", "output-search/*"])
     writeAppYaml(workload,queryId,outliers_pct,minMatches,anchored)
     print ('Arabesque is running workload ' + workload  + ' query ' + query + ' outliers_pct ' + outliers_pct + ' ...')
     p = subprocess.Popen(['./run_qfrag_spark.sh cluster-spark.yaml search-configs.yaml'], stderr=subprocess.PIPE, shell=True)
@@ -186,12 +189,13 @@ def charsToLines(charsArray, startChar):
 def verifyAnchored(workload, queryId, outliers_pct):
     # NOTE for unanchored, it does not make sense to do this check as there could be different permutations
     query = 'Q' + str(queryId)
-    searchOut = open(
-        'output-search/search-' + workload + '-' + query + '-outliers_pct=' + str(outliers_pct) + '-numServers=' + str(
-            numServers) \
-        + '-partPerServer=' + str(numPartitionsPerServer) + '-outputActive=' + str(outputActive) + '.txt', 'r')
-    numResults = sum(1 for line in searchOut)
-    searchOut.close()
+    files = glob.glob('output-search/*')
+    print('verifyAnchored: ',files)
+    numResults = 0
+    for fname in files:
+        infile = open(fname)
+        for line in infile:
+            numResults += 1
     expectedResults = results[workload][queryId - 1]
     if numResults != expectedResults:
         #        outcome = open ('failed-' + workload + '-' + query + '-' + outliers_pct + '.txt', 'w')
@@ -215,33 +219,27 @@ def verify(workload, queryId, outliers_pct, anchored):
     query = 'Q' + str(queryId)
     if not anchored:
         query += 'u'
-    searchOut = open(
-        'results/search-' + workload + '-' + query + '-outliers_pct=' + str(outliers_pct) + '-numServers=' + str(
-            numServers) \
-        + '-partPerServer=' + str(numPartitionsPerServer) + '-outputActive=' + str(outputActive) + '.txt', 'w')
-    subprocess.call(["hdfs", "dfs", "-cat", "output-search/*"], stdout=searchOut)
-    searchOut.close()
-
-    searchOut = open(
-        'results/search-' + workload + '-' + query + '-outliers_pct=' + str(outliers_pct) + '-numServers=' + str(
-            numServers) \
-        + '-partPerServer=' + str(numPartitionsPerServer) + '-outputActive=' + str(outputActive) + '.txt', 'r')
     search = set()
-    for line in searchOut:
-        words = line.split()
-        words.sort(key=int)
-        string = ""
-        for word in words:
-            string += word
-            string += ' '
-        search.add(string)
-    searchOut.close()
+    files = glob.glob('output-search/*')
+    print('verify: ',files)
+    for fname in files:
+        print("verify: " + fname)
+        infile = open(fname)
+        for line in infile:
+            words = line.split()
+            words.sort(key=int)
+            string = ""
+            for word in words:
+                string += word
+                string += ' '
+            search.add(string) 
+    
     search = sorted(search)
 
     if anchored:
-        truthOut = open('ground-truth/sorted-clean-' + workload + '-q' + str(queryId) + '.txt', 'r')
+        truthOut = open('../data/ground-truth/sorted-clean-' + workload + '-q' + str(queryId) + '.txt', 'r')
     else:
-        truthOut = open('ground-truth/sorted-clean-' + workload + '-unanchored-q' + str(queryId) + '.txt', 'r')
+        truthOut = open('../data/ground-truth/sorted-clean-' + workload + '-unanchored-q' + str(queryId) + '.txt', 'r')
     #    truth = set()
     #    for line in truthOut:
     #        words = line.split()
@@ -322,8 +320,10 @@ def main():
                     if doVerify and outputActive and outputBinary == 'false':
                         print ('Running verification for workload ' + workload + ' query Q' + str(
                             queryId) + ' outliers_pct ' + outliers_pct)
-                        #                    verifyAnchored(workload,i,outliers_pct)
-                        verify(workload, queryId, outliers_pct, True)
+                        
+                        verifyAnchored(workload, queryId, outliers_pct)
+                        if workload == 'citeseer':
+                            verify(workload, queryId, outliers_pct, True)
                     else:
                         print ('Skipping verification for workload ' + workload + ' query Q' + str(
                             queryId) + ' outliers_pct ' + outliers_pct)

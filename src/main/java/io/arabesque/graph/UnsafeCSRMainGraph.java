@@ -6,14 +6,12 @@ import io.arabesque.conf.Configuration;
 import io.arabesque.search.steps.QueryGraph;
 import io.arabesque.utils.MainGraphPartitioner;
 import io.arabesque.utils.collection.ReclaimableIntCollection;
-import org.apache.commons.io.input.BOMInputStream;
 import org.apache.log4j.Logger;
 
 import java.io.*;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.StringTokenizer;
 
 /**

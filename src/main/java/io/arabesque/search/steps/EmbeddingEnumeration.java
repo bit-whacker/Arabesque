@@ -1,7 +1,9 @@
 package io.arabesque.search.steps;
 
 import io.arabesque.QfragRunner;
+import io.arabesque.conf.Configuration;
 import io.arabesque.conf.SparkConfiguration;
+import io.arabesque.graph.PartitionGraph;
 import io.arabesque.graph.UnsafeCSRGraphSearch;
 import io.arabesque.search.trees.SearchDataTree;
 import io.arabesque.utils.ThreadOutput;
@@ -51,11 +53,15 @@ public class EmbeddingEnumeration
         if (v2 != null && v2.hasNext()){
 
             configBC.value().initialize();
+            Configuration config = configBC.value();
 
             Tuple2<Integer, Iterable<SearchDataTree>> iter = v2.next();
             Iterator<SearchDataTree> msgs = iter._2().iterator();
 
-            UnsafeCSRGraphSearch dataGraph = io.arabesque.conf.Configuration.get().getSearchMainGraph();
+            PartitionGraph dataGraph;
+
+            dataGraph = new PartitionGraph(config);
+            dataGraph.readPartition(partitionId);
             QueryGraph queryGraph = queryGraphBC.getValue();
 
             init_Finish_Time = System.currentTimeMillis();

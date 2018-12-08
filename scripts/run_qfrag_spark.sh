@@ -35,7 +35,7 @@ while IFS='' read -r line || [ -n "$line" ]; do
 done < "$tempfile"
 
 # qfrag executable
-QFRAG_JAR_DIR="/Users/ambermadvariya/src/Arabesque/target/"
+QFRAG_JAR_DIR="../target/"
 #QFRAG_JAR_DIR="."
 PWD="`pwd`"
 #QFRAG_JAR_DIR="$(dirname "$PWD")"

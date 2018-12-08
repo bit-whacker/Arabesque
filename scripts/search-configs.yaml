@@ -7,7 +7,7 @@ search_fastNeighbors: true
 search_write_in_binary: false
 system_type: search
 log_level: fatal
-search_query_graph_path: s3a://qfrag/queries/Q7-citeseer
+search_query_graph_path: s3a://qfrag/queries/Q1-citeseer
 search_output_active: true
 search_num_vertices: 3312
 search_num_edges: 9072

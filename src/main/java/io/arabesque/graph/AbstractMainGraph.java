@@ -228,6 +228,7 @@ public abstract class AbstractMainGraph implements MainGraph {
         reset();
         readFromBuffer(reader);
         reader.close();
+        is.close();
         System.gc();
 
         if (LOG.isInfoEnabled()) {

@@ -8,6 +8,7 @@ import io.arabesque.utils.AwsS3Utils;
 import io.arabesque.utils.MainGraphPartitioner;
 import io.arabesque.utils.collection.IntArrayList;
 import io.arabesque.utils.collection.ReclaimableIntCollection;
+import io.netty.channel.Channel;
 import org.apache.commons.collections4.map.LRUMap;
 import org.apache.hadoop.fs.FileSystem;
 
@@ -42,13 +43,19 @@ public class PartitionGraph implements SearchGraph, Externalizable {
         if(path.startsWith(config.S3_SUBSTR)) {
             InputStream is = s3Obj.readFromPath(path);
             ObjectInputStream reader = new ObjectInputStream(is);
-            return (UnsafeCSRGraphSearch) reader.readObject();
+            UnsafeCSRGraphSearch dataGraph = (UnsafeCSRGraphSearch) reader.readObject();
+            reader.close();
+            is.close();
+            return dataGraph;
         }
         else {
             org.apache.hadoop.fs.Path hdfsPath = new org.apache.hadoop.fs.Path(path);
             FileSystem fs = hdfsPath.getFileSystem(new org.apache.hadoop.conf.Configuration());
             ObjectInputStream reader = new ObjectInputStream(fs.open(hdfsPath));
-            return (UnsafeCSRGraphSearch) reader.readObject();
+            UnsafeCSRGraphSearch dataGraph = (UnsafeCSRGraphSearch) reader.readObject();
+            reader.close();
+            fs.close();
+            return dataGraph;
         }
     }
 

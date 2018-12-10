@@ -45,7 +45,9 @@ public class AwsS3Utils implements Serializable {
             S3Object fullObject = s3Client.getObject(new GetObjectRequest(bucketName, key));
             return fullObject.getObjectContent();
         }catch (Exception e) {
-            throw new RuntimeException("Error reading path: " + s3Path);
+            System.out.println("Error reading path: " + s3Path);
+            e.printStackTrace();
+            throw new RuntimeException(e);
         }
     }
 

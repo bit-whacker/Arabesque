@@ -2,7 +2,6 @@ package io.arabesque;
 
 import io.arabesque.conf.SparkConfiguration;
 import io.arabesque.conf.YamlConfiguration;
-import io.arabesque.graph.UnsafeCSRGraphSearch;
 import io.arabesque.search.steps.EmbeddingEnumeration;
 import io.arabesque.search.steps.QueryGraph;
 import io.arabesque.search.steps.TreeBuilding;
@@ -104,9 +103,6 @@ public class QfragRunner implements Tool {
             partitioner = new MainGraphPartitioner(config);
         }
 
-        Thread thread = new Thread(partitioner);
-        thread.start();
-
         queryGraphBuildingTime = System.currentTimeMillis();
 
         if(queryGraphPath == null)
@@ -125,12 +121,17 @@ public class QfragRunner implements Tool {
 
         // Initializing the accumulator
         initAccums();
+        Thread thread = new Thread(partitioner);
+        thread.start();
+
         try {
             thread.join();
         } catch(InterruptedException e) {
             throw new RuntimeException(e);
         }
+
         config.setPartitioner(partitioner);
+        partitioner.serializePartitions();
         // TODO need to broadcast the data graph and query graph, and probably also the Configuration singleton?
     }
 

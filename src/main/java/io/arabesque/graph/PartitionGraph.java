@@ -4,16 +4,15 @@ import com.koloboke.collect.IntCollection;
 import com.koloboke.collect.IntIterator;
 import com.koloboke.function.IntConsumer;
 import io.arabesque.conf.Configuration;
+import io.arabesque.utils.AwsS3Utils;
 import io.arabesque.utils.MainGraphPartitioner;
 import io.arabesque.utils.collection.IntArrayList;
 import io.arabesque.utils.collection.ReclaimableIntCollection;
 import org.apache.commons.collections4.map.LRUMap;
+import org.apache.hadoop.fs.FileSystem;
 
 import javax.annotation.Nonnull;
-import java.io.Externalizable;
-import java.io.IOException;
-import java.io.ObjectInput;
-import java.io.ObjectOutput;
+import java.io.*;
 
 public class PartitionGraph implements SearchGraph, Externalizable {
     private LRUMap<Integer, UnsafeCSRGraphSearch> graphMap;
@@ -22,6 +21,8 @@ public class PartitionGraph implements SearchGraph, Externalizable {
     private int numLabels;
     private boolean fastNeighbors;
     private String partitionedPath;
+    private AwsS3Utils s3Obj;
+    private boolean isBinary;
 
     public PartitionGraph(Configuration config) {
         partitioner = config.getPartitioner();
@@ -32,20 +33,49 @@ public class PartitionGraph implements SearchGraph, Externalizable {
         fastNeighbors = config.getBoolean(config.SEARCH_FASTNEIGHBORS, config.SEARCH_FASTNEIGHBORS_DEFAULT);
         partitionedPath = config.getString(config.PARTITION_PATH, "");
         graphMap = new LRUMap<>(numPartitions);
+        s3Obj = new AwsS3Utils();
+        isBinary = config.getBoolean(config.IS_BINARY, config.IS_BINARY_DEFAULT);
+    }
+
+    private UnsafeCSRGraphSearch readPartitionFromBinary(int partition) throws IOException, ClassNotFoundException {
+        String path = partitionedPath + partition + ".ser";
+        if(path.startsWith(config.S3_SUBSTR)) {
+            InputStream is = s3Obj.readFromPath(path);
+            ObjectInputStream reader = new ObjectInputStream(is);
+            return (UnsafeCSRGraphSearch) reader.readObject();
+        }
+        else {
+            org.apache.hadoop.fs.Path hdfsPath = new org.apache.hadoop.fs.Path(path);
+            FileSystem fs = hdfsPath.getFileSystem(new org.apache.hadoop.conf.Configuration());
+            ObjectInputStream reader = new ObjectInputStream(fs.open(hdfsPath));
+            return (UnsafeCSRGraphSearch) reader.readObject();
+        }
+    }
+
+    private UnsafeCSRGraphSearch readPartitionFromFile(int partition) throws IOException {
+        String path = partitionedPath + partition;
+        if(path.startsWith(config.S3_SUBSTR)) {
+            return new UnsafeCSRGraphSearch(path, true);
+        }
+        else {
+            return new UnsafeCSRGraphSearch(new org.apache.hadoop.fs.Path(path), true);
+        }
+
     }
 
     public void readPartition(int partition) {
-        String path = partitionedPath + partition;
         UnsafeCSRGraphSearch dataGraph;
         try {
-            if (path.startsWith(config.S3_SUBSTR)) {
-                dataGraph = new UnsafeCSRGraphSearch(path, true);
-            } else {
-                dataGraph = new UnsafeCSRGraphSearch(new org.apache.hadoop.fs.Path(path), true);
+            if(isBinary) {
+                dataGraph = readPartitionFromBinary(partition);
+            }
+            else {
+                dataGraph = readPartitionFromFile(partition);
             }
             graphMap.put(partition, dataGraph);
         }
-        catch(IOException e) {
+        catch(Exception e) {
+            e.printStackTrace();
             throw new RuntimeException(e);
         }
     }

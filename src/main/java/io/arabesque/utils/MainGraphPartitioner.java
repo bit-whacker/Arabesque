@@ -1,6 +1,7 @@
 package io.arabesque.utils;
 
 import io.arabesque.conf.SparkConfiguration;
+import io.arabesque.graph.UnsafeCSRGraphSearch;
 import io.arabesque.utils.collection.IntArrayList;
 import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.fs.FileSystem;
@@ -164,16 +165,56 @@ public class MainGraphPartitioner implements Runnable, Serializable {
         }
     }
 
-    protected void copyToDataStore(int fileIdx) {
+    private void serializeGraph(Integer idx) {
+        try{
+            UnsafeCSRGraphSearch dataGraph = new UnsafeCSRGraphSearch(dataPartitionDir + idx + ".txt",0);
+            FileOutputStream fout = new FileOutputStream(dataPartitionDir + idx + ".ser");
+            ObjectOutputStream oos = new ObjectOutputStream(fout);
+            oos.writeObject(dataGraph);
+        } catch(Exception e) {
+            System.out.println("Error serializing graph");
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
+
+    protected void copyFileToStore(String hdfsPath, String path)  throws IOException {
+        Path targetPath = new Path(hdfsPath);
+        FileSystem fs = targetPath.getFileSystem(new org.apache.hadoop.conf.Configuration());
+        fs.copyFromLocalFile(new Path(path), targetPath);
+    }
+
+    protected void deleteFile(String path) {
+        try {
+            Files.deleteIfExists(new File(path).toPath());
+        } catch(IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    protected void copyPartitionToDataStore(int fileIdx) {
         try {
             String path = dataPartitionDir + fileIdx + ".txt";
             String hdfsPath = partitionedPath + fileIdx;
-            Path targetPath = new Path(hdfsPath);
-            FileSystem fs = targetPath.getFileSystem(new org.apache.hadoop.conf.Configuration());
-            fs.copyFromLocalFile(new Path(path), targetPath);
-            boolean deleted = Files.deleteIfExists(new File(path).toPath());
+            copyFileToStore(hdfsPath, path);
         } catch(IOException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    public void serializePartitions() {
+        for (int idx = 0; idx < numPartitions; idx++) {
+            try {
+                serializeGraph(idx);
+                String path = dataPartitionDir + idx + ".ser";
+                String targetPath = partitionedPath + idx + ".ser";
+                copyFileToStore(targetPath, path);
+                deleteFile(dataPartitionDir + idx + ".txt");
+                deleteFile(path);
+            } catch(IOException e) {
+                System.out.println("Error serializing partition: " + idx);
+                throw new RuntimeException(e);
+            }
         }
     }
 
@@ -216,30 +257,7 @@ public class MainGraphPartitioner implements Runnable, Serializable {
             throw new RuntimeException(e);
         }
     }
-    /*
-    public int getIdxByVertex(int vertexId) {
-        if(vertexId >= totalVertices) { throw new RuntimeException("Vertex index out of bounds: " + vertexId); }
-        for(int i = 0; i < vertexIndex.size(); i++) {
-            int partition = vertexIndex.get(i);
-            if(partition > vertexId) {
-                return i;
-            }
-        }
-        return numPartitions-1;
 
-    }
-
-    public int getIdxByEdge(int edgeId) {
-        if(edgeId >= totalEdges) { throw new RuntimeException("Edge index out of bounds: " + edgeId); }
-        for(int i = 0; i < edgeIndex.size(); i++) {
-            int partition = edgeIndex.get(i);
-            if(partition > edgeId) {
-                return i;
-            }
-        }
-        return numPartitions-1;
-    }
-    */
 
     private int getPartitionCount() {
         if(totalVertices%numPartitions==0) {
@@ -337,7 +355,7 @@ public class MainGraphPartitioner implements Runnable, Serializable {
                 if(totalVertices%partitionCount == 0) {
                     out.close();
                     addGraphMetaData(partitionVertices, partitionEdges, vertexOffset, edgeOffset, fileIdx);
-                    copyToDataStore(fileIdx);
+                    copyPartitionToDataStore(fileIdx);
                     vertexIndex.add(totalVertices);
                     edgeIndex.add(totalEdges);
                     if(line!=null) {
@@ -356,7 +374,7 @@ public class MainGraphPartitioner implements Runnable, Serializable {
             if(totalVertices%partitionCount!=0) {
                 out.close();
                 addGraphMetaData(partitionVertices, partitionEdges, vertexOffset, edgeOffset, fileIdx);
-                copyToDataStore(fileIdx);
+                copyPartitionToDataStore(fileIdx);
                 edgeIndex.add(totalEdges);
                 vertexIndex.add(totalVertices);
             }

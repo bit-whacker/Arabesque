@@ -97,7 +97,6 @@ public class TreeBuilding
         conf.initialize();
 
         String inputGraphPath = conf.getString(conf.SEARCH_MAINGRAPH_PATH,conf.SEARCH_MAINGRAPH_PATH_DEFAULT);
-        //inputGraphPath = inputGraphPath + "-" + partitionId;
         PartitionGraph dataGraph;
         if(inputGraphPath == null)
             throw new RuntimeException("Main input graph was not set in the config file");

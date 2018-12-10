@@ -21,12 +21,16 @@ public class AwsS3Partitioner extends MainGraphPartitioner {
     }
 
     @Override
-    protected void copyToDataStore(int fileIdx) {
+    protected void copyFileToStore(String s3Path, String path) throws IOException{
+        s3Object.uploadFile(path, s3Path);
+    }
+
+    @Override
+    protected void copyPartitionToDataStore(int fileIdx) {
         try {
             String path = dataPartitionDir + fileIdx + ".txt";
             String s3Path = partitionedPath + fileIdx;
-            s3Object.uploadFile(path, s3Path);
-            boolean deleted = Files.deleteIfExists(new File(path).toPath());
+            copyFileToStore(s3Path, path);
         } catch(IOException e) {
             throw new RuntimeException(e);
         }

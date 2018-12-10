@@ -74,6 +74,10 @@ public class UnsafeCSRGraphSearch extends UnsafeCSRMainGraph
         super(hdfsPath, partitionFlag);
     }
 
+    public UnsafeCSRGraphSearch(String fileName, int partitionFlag) throws IOException {
+        super(fileName, partitionFlag);
+    }
+
     void setVertexNeighborLabelPos(int index, int index2, int value){
         index = index - (int)vertexOffset;
         if (index>numVertices || index2 >= numLabels || index < 0 || index2 < 0){
@@ -482,6 +486,8 @@ public class UnsafeCSRGraphSearch extends UnsafeCSRMainGraph
         // isMultiGraph is covered by UnsafeCSRMainGraph and set to false in its build method
         out.writeLong(numVertices);
         out.writeLong(numEdges);
+        out.writeLong(vertexOffset);
+        out.writeLong(edgeOffset);
         out.writeBoolean(isEdgeLabelled);
         out.writeBoolean(isFloatLabel);
         out.writeBoolean(isBinary);
@@ -491,7 +497,7 @@ public class UnsafeCSRGraphSearch extends UnsafeCSRMainGraph
         out.writeBoolean(built);
 
         if (built) {
-            for (long index = 0; index <= numVertices; index++) {
+            for (long index = vertexOffset; index <= vertexOffset + numVertices; index++) {
                 // verticesIndex
                 out.writeInt(getVertexPos(index));
                 // verticesIndexLabel
@@ -499,7 +505,7 @@ public class UnsafeCSRGraphSearch extends UnsafeCSRMainGraph
                 // TODO the superclass should take a long parameter, but this would require changing a central interface
                 out.writeInt(partitioner.getVertexLabel((int) index));
             }
-            for (long index = 0; index < numEdges; index++) {
+            for (long index = edgeOffset; index < edgeOffset + numEdges; index++) {
                 // edgesIndex
                 out.writeInt(getEdgeDst((int) index));
                 // edgesIndexSource
@@ -563,7 +569,7 @@ public class UnsafeCSRGraphSearch extends UnsafeCSRMainGraph
             }
         }
 
-        for (int index = 0; index < numVertices; index++) {
+        for (int index = (int)vertexOffset; index < (int)vertexOffset + numVertices; index++) {
             for (int index2 = 0; index2 < numLabels; index2++) {
                 out.writeInt(getVertexNeighborLabelPos(index, index2));
             }
@@ -575,6 +581,8 @@ public class UnsafeCSRGraphSearch extends UnsafeCSRMainGraph
         // isMultiGraph is covered by UnsafeCSRMainGraph and set to false in its build method
         numVertices = in.readLong();
         numEdges = in.readLong();
+        vertexOffset = in.readLong();
+        edgeOffset = in.readLong();
         isEdgeLabelled = in.readBoolean();
         isFloatLabel = in.readBoolean();
         isBinary = in.readBoolean();
@@ -585,6 +593,8 @@ public class UnsafeCSRGraphSearch extends UnsafeCSRMainGraph
         built = in.readBoolean();
 
         if (built){
+            Configuration conf = Configuration.get();
+            partitioner = conf.getPartitioner();
             verticesIndex = UNSAFE.allocateMemory((numVertices+1L) * INT_SIZE_IN_BYTES + INT_SIZE_IN_BYTES);
             verticesIndexLabel = UNSAFE.allocateMemory((numVertices + 1L) * INT_SIZE_IN_BYTES + INT_SIZE_IN_BYTES);
             edgesIndex       = UNSAFE.allocateMemory(numEdges * INT_SIZE_IN_BYTES + INT_SIZE_IN_BYTES);
@@ -596,7 +606,7 @@ public class UnsafeCSRGraphSearch extends UnsafeCSRMainGraph
             UNSAFE.putInt(edgesIndex + (numEdges *INT_SIZE_IN_BYTES), -99999);
             UNSAFE.putInt(edgesIndexSource + (numEdges *INT_SIZE_IN_BYTES), -99999);
 
-            for (long index = 0; index <= numVertices; index ++){
+            for (long index = vertexOffset; index <= vertexOffset + numVertices; index ++){
                 // verticesIndex
                 setVertexPos(index, in.readInt());
                 // verticesIndexLabel
@@ -605,7 +615,7 @@ public class UnsafeCSRGraphSearch extends UnsafeCSRMainGraph
                 setVertexLabel(index, in.readInt());
             }
 
-            for (long index = 0; index < numEdges; index ++) {
+            for (long index = edgeOffset; index < edgeOffset + numEdges; index ++) {
                 // edgesIndex
                 setEdgeDst((int) index, in.readInt());
                 // edgesIndexSource
@@ -684,12 +694,12 @@ public class UnsafeCSRGraphSearch extends UnsafeCSRMainGraph
         // DEBUG canary value to detect buffer overflow
         UNSAFE.putInt(vertexNeighLabelPos + ((numVertices*numLabels + 1L) *INT_SIZE_IN_BYTES), -99999);
 
-        for (int index = 0; index < numVertices; index++) {
+        for (int index = (int)vertexOffset; index < (int)vertexOffset + numVertices; index++) {
             for (int index2 = 0; index2 < numLabels; index2++) {
                 setVertexNeighborLabelPos(index, index2, in.readInt());
             }
         }
-        setVertexNeighborLabelPos((int)numVertices,0,getVertexPos(numVertices));
+        setVertexNeighborLabelPos((int)vertexOffset + (int)numVertices,0,getVertexPos((int)vertexOffset + numVertices));
 
         // DEBUG canary value to detect buffer overflow
         if (UNSAFE.getInt(vertexNeighLabelPos + ((numVertices*numLabels + 1L) *INT_SIZE_IN_BYTES)) != -99999){

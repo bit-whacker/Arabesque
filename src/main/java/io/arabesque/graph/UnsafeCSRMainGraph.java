@@ -77,6 +77,10 @@ public class UnsafeCSRMainGraph extends AbstractMainGraph {
         super(hdfsPath, partitionFlag);
     }
 
+    public UnsafeCSRMainGraph(String fileName, int partitionFlag) throws IOException {
+        super(fileName, partitionFlag);
+    }
+
     protected void build() {
         // WHEN LOADING ADD AN EXTRA VERTEX SO THAT WE DON'T CARE
         // FOR BOUNDARY FOR THE LAST VERTEX.

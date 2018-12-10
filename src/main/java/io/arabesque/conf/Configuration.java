@@ -224,6 +224,9 @@ public class Configuration<O extends Embedding> implements java.io.Serializable 
     public static final String SEARCH_OUTLIERS_PCT = "search_outliers_pct";
     public static final double SEARCH_OUTLIERS_PCT_DEFAULT = 0.001;
 
+    public static final String IS_BINARY = "is_binary";
+    public static final boolean IS_BINARY_DEFAULT = false;
+
     public static final String CONF_MAINGRAPH_FLOAT_EDGE     = "arabesque.graph.float_edge";
     public static final boolean CONF_MAINGRAPH_FLOAT_EDGE_DEFAULT = false;
     public static final String CONF_MAINGRAPH_IS_BINARY      = "arabesque.graph.binary";

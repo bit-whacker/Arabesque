@@ -50,6 +50,7 @@ public class EmbeddingEnumeration
 
     @Override
     public Iterator<Integer> call(Integer partitionId, Iterator<Tuple2<Integer, Iterable<SearchDataTree>>> v2) throws Exception {
+        computation_Start_Time = System.currentTimeMillis();
         if (v2 != null && v2.hasNext()){
 
             configBC.value().initialize();
@@ -65,7 +66,6 @@ public class EmbeddingEnumeration
             QueryGraph queryGraph = queryGraphBC.getValue();
 
             init_Finish_Time = System.currentTimeMillis();
-            computation_Start_Time = System.currentTimeMillis();
 
             ThreadOutput out = ThreadOutputHandler.createThreadOutput(partitionId, true);
             CrossEdgeMatchingLogic crossEdgeMatchingLogic = new CrossEdgeMatchingLogic(dataGraph, queryGraph, out);

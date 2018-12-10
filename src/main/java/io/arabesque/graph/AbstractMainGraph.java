@@ -61,6 +61,11 @@ public abstract class AbstractMainGraph implements MainGraph {
         init(hdfsPath, partitionFlag);
     }
 
+    public AbstractMainGraph(String fileName, int partitionFlag)
+            throws IOException{
+        init(fileName, partitionFlag);
+    }
+
 
     // ONLY USED FOR TESTING TO AVOID CHANGING THE TESTS!!
     protected void init(String name, boolean isEdgeLabelled, boolean isMultiGraph) {
@@ -218,6 +223,33 @@ public abstract class AbstractMainGraph implements MainGraph {
         isMultiGraph = conf.isGraphMulti();
         isFloatLabel = conf.isFloatEdge();
         InputStream is = s3Object.readFromPath(fileName);
+        BufferedReader reader = new BufferedReader(new InputStreamReader(is));
+        setGraphMetaData(reader);
+        reset();
+        readFromBuffer(reader);
+        reader.close();
+        System.gc();
+
+        if (LOG.isInfoEnabled()) {
+            LOG.info("Done in " + (System.currentTimeMillis() - start));
+            LOG.info("Number vertices: " + numVertices);
+            LOG.info("Number edges: " + numEdges);
+        }
+    }
+
+    protected void init(String fileName, int paritionFlag) throws IOException {
+        long start = 0;
+
+        if (LOG.isInfoEnabled()) {
+            start = System.currentTimeMillis();
+            LOG.info("Initializing");
+        }
+
+        Configuration conf = Configuration.get();
+        isEdgeLabelled = conf.isGraphEdgeLabelled();
+        isMultiGraph = conf.isGraphMulti();
+        isFloatLabel = conf.isFloatEdge();
+        InputStream is = new FileInputStream(new File(fileName));
         BufferedReader reader = new BufferedReader(new InputStreamReader(is));
         setGraphMetaData(reader);
         reset();

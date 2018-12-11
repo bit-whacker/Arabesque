@@ -89,17 +89,24 @@ public class QfragRunner implements Tool {
         config.setIfUnset ("num_partitions", sc.defaultParallelism());
 
         config.setHadoopConfig (sc.hadoopConfiguration());
-        numPartitions = config.numPartitions();
+        int numWorkers = config.getInteger(config.NUM_WORKERS, 1);
+        int numThreads = config.getInteger(config.NUM_THREADS,1);
+        numPartitions = numWorkers*numThreads;
         inputGraphPath = config.getString(config.SEARCH_MAINGRAPH_PATH,config.SEARCH_MAINGRAPH_PATH_DEFAULT);
         queryGraphPath = config.getString(config.SEARCH_QUERY_GRAPH_PATH,config.SEARCH_QUERY_GRAPH_PATH_DEFAULT);
 
         dataGraphBuildingTime = System.currentTimeMillis();
 
         UnsafeCSRGraphSearch dataGraph = null;
+        if(inputGraphPath == null)
+            throw new RuntimeException("Main input graph was not set in the config file");
         try {
-            if(inputGraphPath == null)
-                throw new RuntimeException("Main input graph was not set in the config file");
-            dataGraph = new UnsafeCSRGraphSearch(new org.apache.hadoop.fs.Path(inputGraphPath));
+            if (inputGraphPath.contains(config.S3_SUBSTR)) {
+                dataGraph =  new UnsafeCSRGraphSearch(inputGraphPath, true);
+            } else {
+                dataGraph = new UnsafeCSRGraphSearch(new org.apache.hadoop.fs.Path(inputGraphPath));
+
+            }
         } catch (IOException e) {
             System.out.println("Error reading the data graph");
             System.out.println(e.toString());
@@ -241,6 +248,7 @@ public class QfragRunner implements Tool {
         // ######### STEP 1 ##########
 
         // create the partitions RDD
+        System.out.println("Number of partitions: " + numPartitions);
         JavaRDD globalRDD = sc.parallelize(new ArrayList<Tuple2<Integer, String>>(numPartitions), numPartitions).cache();
 
         globalRDD.setName("parallelize");

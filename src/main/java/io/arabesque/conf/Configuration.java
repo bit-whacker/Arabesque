@@ -163,6 +163,11 @@ public class Configuration<O extends Embedding> implements java.io.Serializable 
 
     //***** QFrag paramters
 
+    public static final String S3_SUBSTR = "s3";
+
+    public static final String NUM_WORKERS = "num_workers";
+    public static final String NUM_THREADS = "num_compute_threads";
+
     public static final String SEARCH_MAINGRAPH_CLASS = "search.graph.class";
     public static final String SEARCH_MAINGRAPH_CLASS_DEFAULT = "io.arabesque.graph.UnsafeCSRGraphSearch";
 

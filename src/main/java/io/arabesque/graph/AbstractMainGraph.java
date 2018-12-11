@@ -1,6 +1,7 @@
 package io.arabesque.graph;
 
 import io.arabesque.conf.Configuration;
+import io.arabesque.utils.AwsS3Utils;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.log4j.Logger;
 
@@ -24,6 +25,8 @@ public abstract class AbstractMainGraph implements MainGraph {
 
   protected String name;
 
+  protected AwsS3Utils s3Object;
+
   public AbstractMainGraph() { }
 
   public AbstractMainGraph(String name) {
@@ -45,6 +48,11 @@ public abstract class AbstractMainGraph implements MainGraph {
       throws IOException {
     this(hdfsPath.getName());
     init(hdfsPath);
+  }
+
+  public AbstractMainGraph(String fileName, boolean S3_FLAG) throws IOException {
+    s3Object = new AwsS3Utils();
+    init(fileName, S3_FLAG);
   }
 
 
@@ -112,6 +120,31 @@ public abstract class AbstractMainGraph implements MainGraph {
     } else {
       throw new RuntimeException("Invalid path: " + path);
     }
+
+    if (LOG.isInfoEnabled()) {
+      LOG.info("Done in " + (System.currentTimeMillis() - start));
+      LOG.info("Number vertices: " + numVertices);
+      LOG.info("Number edges: " + numEdges);
+    }
+  }
+
+  protected void init(String fileName, boolean S3_FLAG) throws IOException {
+    long start = 0;
+
+    if (LOG.isInfoEnabled()) {
+      start = System.currentTimeMillis();
+      LOG.info("Initializing");
+    }
+
+    Configuration conf = Configuration.get();
+    isEdgeLabelled = conf.isGraphEdgeLabelled();
+    isMultiGraph = conf.isGraphMulti();
+    isFloatLabel = conf.isFloatEdge();
+
+    reset();
+    InputStream is = s3Object.readFromPath(fileName);
+    readFromInputStream(is);
+    is.close();
 
     if (LOG.isInfoEnabled()) {
       LOG.info("Done in " + (System.currentTimeMillis() - start));

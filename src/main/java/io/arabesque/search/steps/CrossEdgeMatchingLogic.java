@@ -48,7 +48,6 @@ class CrossEdgeMatchingLogic {
                 //TODO recursive pruning if we want to split the tree again after a few matches
             }
             else if(embedding.getSize() == queryVertices) {
-
                 if (outputStream!=null) {
                     //If null output is disabled.
                     try {

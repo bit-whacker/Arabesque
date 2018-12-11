@@ -61,6 +61,10 @@ public class UnsafeCSRGraphSearch extends UnsafeCSRMainGraph
         super(filePath);
     }
 
+    public UnsafeCSRGraphSearch(String fileName, boolean S3_PATH) throws IOException {
+        super(fileName, S3_PATH);
+    }
+
     public UnsafeCSRGraphSearch(org.apache.hadoop.fs.Path hdfsPath) throws IOException {
         super(hdfsPath);
     }

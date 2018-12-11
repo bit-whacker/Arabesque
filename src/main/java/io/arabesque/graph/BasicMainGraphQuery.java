@@ -41,6 +41,10 @@ public class BasicMainGraphQuery extends BasicMainGraph {
         super(hdfsPath);
     }
 
+    public BasicMainGraphQuery(String fileName, boolean S3_FLAG) throws IOException {
+        super(fileName, S3_FLAG);
+    }
+
     public IntSet getAllLabelsNeighbors(int vertex) {
         IntCollection vertexNeighbours = getVertexNeighbours(vertex);
 

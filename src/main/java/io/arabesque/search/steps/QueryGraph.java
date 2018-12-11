@@ -95,12 +95,16 @@ public class QueryGraph implements Externalizable {
 
         boolean full_start = conf.getBoolean(START_FULL,true);
 
-        Path queryFile = new Path(queryFileName);
-
         try {
-            queryGraph = new BasicMainGraphQuery(queryFile);
-        } catch (IOException e) {
-            throw new RuntimeException("Problem reading query file " + queryFileName + ": " + e.toString());
+            if (queryFileName.contains(conf.S3_SUBSTR)) {
+                queryGraph = new BasicMainGraphQuery(queryFileName, true);
+            } else {
+                Path queryFile = new Path(queryFileName);
+                queryGraph = new BasicMainGraphQuery(queryFile);
+            }
+        }
+        catch(IOException e) {
+            throw new RuntimeException(e);
         }
         has_star_label_on_edge = queryGraph.has_star_on_edges();
 

@@ -84,7 +84,7 @@ public class TreeBuilding
 
     @Override
     public Iterator<Tuple2<Integer, SearchDataTree>> call(Integer partitionId, Iterator<Tuple2<Integer, SearchDataTree>> v2) {
-
+        System.out.println("Current partition id is: " + partitionId);
         Configuration conf = configBC.value();
         conf.initialize();
 

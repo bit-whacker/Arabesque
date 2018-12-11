@@ -15,10 +15,10 @@ queriesUnanchored = range(5, 8)
 
 #### configurations contain tuple of [workloads], [queriesAnchored], [queriesUnanchored], [outliers_pcts], numServers, numPartitionsPerServer, outputActive
 configurations = [
-    (['mico','patent','youtube'], queriesAnchored, [], ['0.1'], 10, 32, True)
+    (['citeseer','patent','youtube','mico'], queriesAnchored, [], ['0.1'], 10, 32, True)
 ]
 
-local = False
+local = True
 
 fastNeighbors = 'true'
 #outputBinary = 'true'
@@ -90,6 +90,8 @@ def writeAppYaml(workload, queryId, outliers_pct, minMatches, anchored):
     yamlfile.write('search_outliers_min_matches: ' + minMatches + '\n')
     yamlfile.write('search_fastNeighbors: ' + fastNeighbors + '\n')
     yamlfile.write('search_write_in_binary: ' + outputBinary + '\n')
+    yamlfile.write('system_type: search\n')
+    yamlfile.write('log_level: fatal\n')
 
     if anchored:
         yamlfile.write('search_query_graph_path: Q' + str(queryId) + '-' + workload + '\n')

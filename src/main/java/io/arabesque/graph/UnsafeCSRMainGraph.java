@@ -52,6 +52,10 @@ public class UnsafeCSRMainGraph extends AbstractMainGraph {
         super(name);
     }
 
+    public UnsafeCSRMainGraph(String name, boolean S3_FLAG) throws IOException {
+        super(name, S3_FLAG);
+    }
+
     public UnsafeCSRMainGraph(String name, boolean a, boolean b) {
         super(name, a, b);
     }

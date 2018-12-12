@@ -8,7 +8,6 @@ import io.arabesque.utils.AwsS3Utils;
 import io.arabesque.utils.MainGraphPartitioner;
 import io.arabesque.utils.collection.IntArrayList;
 import io.arabesque.utils.collection.ReclaimableIntCollection;
-import io.netty.channel.Channel;
 import org.apache.commons.collections4.map.LRUMap;
 import org.apache.hadoop.fs.FileSystem;
 
@@ -79,7 +78,7 @@ public class PartitionGraph implements SearchGraph, Externalizable {
             else {
                 dataGraph = readPartitionFromFile(partition);
             }
-            graphMap.put(partition, dataGraph);
+            setPartition(partition, dataGraph);
         }
         catch(Exception e) {
             e.printStackTrace();
@@ -87,11 +86,23 @@ public class PartitionGraph implements SearchGraph, Externalizable {
         }
     }
 
+    protected UnsafeCSRGraphSearch getPartition(int partitionId) {
+        return graphMap.get(partitionId);
+    }
+
+    protected void setPartition(int partition, UnsafeCSRGraphSearch dataGraph) {
+        graphMap.put(partition, dataGraph);
+    }
+
+    protected boolean isPartitionInMemory(int partition) {
+        return graphMap.containsKey(partition);
+    }
+
     private int getPartition(int vertexId, boolean vertexFlag) {
         int partitionId = 0;
         if(vertexFlag) { partitionId = partitioner.getIdxByVertex(vertexId); }
         else { partitionId = partitioner.getIdxByEdge(vertexId); }
-        if(!graphMap.containsKey(partitionId)) {
+        if(!isPartitionInMemory(partitionId)) {
             long startTime = System.currentTimeMillis();
             readPartition(partitionId);
             long deltaTime = System.currentTimeMillis() - startTime;
@@ -103,7 +114,7 @@ public class PartitionGraph implements SearchGraph, Externalizable {
     @Override
     public int getNeighborhoodSizeWithLabel(int i, int label) {
         int partitionId = getPartition(i, true);
-        return graphMap.get(partitionId).getNeighborhoodSizeWithLabel(i, label);
+        return getPartition(partitionId).getNeighborhoodSizeWithLabel(i, label);
     }
 
     @Override
@@ -129,7 +140,7 @@ public class PartitionGraph implements SearchGraph, Externalizable {
 
     public IntArrayList filterVerticesByPartition(IntArrayList vertexList, int partition) {
         IntArrayList filteredVertices = new IntArrayList();
-        UnsafeCSRGraphSearch graph = graphMap.get(partition);
+        UnsafeCSRGraphSearch graph = getPartition(partition);
         long start = graph.getVertexOffset();
         long end = start + graph.getTotalVertices();
         for(int vertex: vertexList) {
@@ -150,7 +161,7 @@ public class PartitionGraph implements SearchGraph, Externalizable {
         //Rewrite this with new Binary search. Implement binary search here
         if(fastNeighbors) {
             int partitionId = getPartition(sourceVertexId, true);
-            return graphMap.get(partitionId).isNeighborVertexWithLabel(sourceVertexId, destVertexId, destinationLabel);
+            return getPartition(partitionId).isNeighborVertexWithLabel(sourceVertexId, destVertexId, destinationLabel);
         }
         return isNeighborVertexWithLabel_(sourceVertexId, destVertexId, destinationLabel);
     }
@@ -287,7 +298,7 @@ public class PartitionGraph implements SearchGraph, Externalizable {
 
     private int getVertexPos(long index) {
         int partitionId = getPartition((int)index, true);
-        return graphMap.get(partitionId).getVertexPos(index);
+        return getPartition(partitionId).getVertexPos(index);
     }
 
     @Override
@@ -308,13 +319,13 @@ public class PartitionGraph implements SearchGraph, Externalizable {
     @Override
     public int getEdgeSource(int edgeId) {
         int partitionId = getPartition(edgeId,false);
-        return graphMap.get(partitionId).getEdgeSource(edgeId);
+        return getPartition(partitionId).getEdgeSource(edgeId);
     }
 
     @Override
     public int getEdgeDst(int edgeId) {
         int partitionId = getPartition(edgeId,false);
-        return graphMap.get(partitionId).getEdgeDst(edgeId);
+        return getPartition(partitionId).getEdgeDst(edgeId);
     }
 
     @Override
@@ -372,12 +383,12 @@ public class PartitionGraph implements SearchGraph, Externalizable {
 
     protected int getVertexNeighborLabelStart(int i, int label){
         int partitionId = getPartition(i, true);
-        return graphMap.get(partitionId).getVertexNeighborLabelStart(i,label);
+        return getPartition(partitionId).getVertexNeighborLabelStart(i,label);
     }
 
     protected int getVertexNeighborLabelEnd(int i, int label){
         int partitionId = getPartition(i, true);
-        return graphMap.get(partitionId).getVertexNeighborLabelEnd(i,label);
+        return getPartition(partitionId).getVertexNeighborLabelEnd(i,label);
     }
 
     public class PartitionedIterator implements IntIterator {

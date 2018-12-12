@@ -16,3 +16,4 @@ data_partitions_dir: data/partitions
 partition_path: s3a://qfrag/partitioned_graph/
 partition_ratio: 1.0
 is_binary: true
+cache_partitions: true

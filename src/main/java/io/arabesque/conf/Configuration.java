@@ -171,6 +171,9 @@ public class Configuration<O extends Embedding> implements java.io.Serializable 
 
     public static final String S3_SUBSTR = "s3";
 
+    public static final String CACHE_PARTITIONS = "cache_partitions";
+    public static final boolean CACHE_PARTITIONS_DEFAULT = false;
+
     public static final String NUM_WORKERS = "num_workers";
     public static final String NUM_THREADS = "num_compute_threads";
 

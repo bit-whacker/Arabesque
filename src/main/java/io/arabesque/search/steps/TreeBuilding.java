@@ -4,6 +4,7 @@ import com.koloboke.collect.IntIterator;
 import io.arabesque.QfragRunner;
 import io.arabesque.conf.Configuration;
 import io.arabesque.conf.SparkConfiguration;
+import io.arabesque.graph.CachePartitionGraph;
 import io.arabesque.graph.PartitionGraph;
 import io.arabesque.graph.SearchGraph;
 import io.arabesque.graph.UnsafeCSRGraphSearch;
@@ -101,7 +102,11 @@ public class TreeBuilding
         if(inputGraphPath == null)
             throw new RuntimeException("Main input graph was not set in the config file");
 
-        dataGraph = new PartitionGraph(conf);
+        if(conf.getBoolean(conf.CACHE_PARTITIONS,conf.CACHE_PARTITIONS_DEFAULT)) {
+            dataGraph = new CachePartitionGraph(conf);
+        } else {
+            dataGraph = new PartitionGraph(conf);
+        }
         dataGraph.readPartition(partitionId);
         QueryGraph queryGraph = queryGraphBC.getValue();
 

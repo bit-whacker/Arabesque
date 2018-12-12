@@ -11,7 +11,7 @@ workloads = ['citeseer'] #, 'mico', 'patent', 'youtube']
 
 tlp = ['0.0']
 tle = ['0.0005', '0.002', '0.005', '0.01']
-queriesAnchored = range(1, 8)
+queriesAnchored = range(1, 9)
 queriesUnanchored = range(5, 8)
 
 #### configurations contain tuple of [workloads], [queriesAnchored], [queriesUnanchored], [outliers_pcts], numServers, numPartitionsPerServer, outputActive

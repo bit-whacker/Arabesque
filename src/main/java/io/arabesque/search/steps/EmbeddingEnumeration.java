@@ -3,6 +3,7 @@ package io.arabesque.search.steps;
 import io.arabesque.QfragRunner;
 import io.arabesque.conf.Configuration;
 import io.arabesque.conf.SparkConfiguration;
+import io.arabesque.graph.CachePartitionGraph;
 import io.arabesque.graph.PartitionGraph;
 import io.arabesque.graph.UnsafeCSRGraphSearch;
 import io.arabesque.search.trees.SearchDataTree;
@@ -61,7 +62,11 @@ public class EmbeddingEnumeration
 
             PartitionGraph dataGraph;
 
-            dataGraph = new PartitionGraph(config);
+            if(config.getBoolean(config.CACHE_PARTITIONS,config.CACHE_PARTITIONS_DEFAULT)) {
+                dataGraph = new CachePartitionGraph(config);
+            } else {
+                dataGraph = new PartitionGraph(config);
+            }
             dataGraph.readPartition(partitionId);
             QueryGraph queryGraph = queryGraphBC.getValue();
 

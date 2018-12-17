@@ -9,10 +9,19 @@ import java.util.List;
 public class AwsS3Partitioner extends MainGraphPartitioner {
     AwsS3Utils s3Object;
 
+    public AwsS3Partitioner() {
+        super();
+    }
+
     public AwsS3Partitioner(SparkConfiguration conf) {
         super(conf);
         s3Object = new AwsS3Utils();
         clearPartitionDir();
+    }
+
+    @Override
+    protected void initializeFS() {
+        s3Object = new AwsS3Utils();
     }
 
     @Override

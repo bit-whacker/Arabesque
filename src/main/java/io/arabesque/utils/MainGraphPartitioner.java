@@ -23,8 +23,8 @@ public class MainGraphPartitioner implements Runnable, Externalizable {
     private String inputGraphPath;
     protected String dataPartitionDir;
     private int numPartitions;
-    private ArrayList<Integer> vertexIndex;
-    private ArrayList<Integer> edgeIndex;
+    private IntArrayList vertexIndex;
+    private IntArrayList edgeIndex;
     private long verticesIndexLabel;
     private HashIntObjMap<IntArrayList> reverseVertexlabel;
     private HashIntIntMap reverseVertexlabelCount;
@@ -59,8 +59,8 @@ public class MainGraphPartitioner implements Runnable, Externalizable {
         totalVertices = config.getInteger(config.SEARCH_NUM_VERTICES, config.SEARCH_NUM_VERTICES_DEFAULT);
         totalEdges = config.getInteger(config.SEARCH_NUM_EDGES, config.SEARCH_NUM_EDGES_DEFAULT);
         verticesIndexLabel = UNSAFE.allocateMemory((totalVertices + 1L) * INT_SIZE_IN_BYTES);
-        vertexIndex = new ArrayList<>();
-        edgeIndex = new ArrayList<>();
+        vertexIndex = new IntArrayList();
+        edgeIndex = new IntArrayList();
         reverseVertexlabelCount = HashIntIntMaps.newMutableMap();
         reverseVertexlabel      = HashIntObjMaps.newMutableMap();
         try{
@@ -192,7 +192,7 @@ public class MainGraphPartitioner implements Runnable, Externalizable {
         }
     }
 
-    public int binarySearch(ArrayList<Integer> currList, int start, int end, int id) {
+    public int binarySearch(IntArrayList currList, int start, int end, int id) {
         if(start==end) {return start;}
         int mid = (start + end)/2;
         if(mid + 1 < end) {
@@ -353,8 +353,6 @@ public class MainGraphPartitioner implements Runnable, Externalizable {
                 vertexIndex.add(totalVertices);
             }
 
-            System.out.println(vertexIndex.toString() + " " + edgeIndex.toString());
-
         } catch(IOException e) {
             throw new RuntimeException(e);
         }
@@ -451,7 +449,7 @@ public class MainGraphPartitioner implements Runnable, Externalizable {
         if (size < 0){
             vertexIndex = null;
         } else {
-            vertexIndex = new ArrayList<>();
+            vertexIndex = new IntArrayList();
             for (int i = 0; i < size; i++) {
                 int idx = in.readInt();
                 vertexIndex.add(idx);
@@ -462,7 +460,7 @@ public class MainGraphPartitioner implements Runnable, Externalizable {
         if (size < 0){
             edgeIndex = null;
         } else {
-            edgeIndex = new ArrayList<>();
+            edgeIndex = new IntArrayList();
             for (int i = 0; i < size; i++) {
                 int idx = in.readInt();
                 edgeIndex.add(idx);

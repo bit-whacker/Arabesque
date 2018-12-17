@@ -3,7 +3,6 @@ package io.arabesque.utils;
 import io.arabesque.conf.SparkConfiguration;
 
 import java.io.*;
-import java.nio.file.Files;
 import java.util.List;
 
 public class AwsS3Partitioner extends MainGraphPartitioner {
@@ -52,18 +51,4 @@ public class AwsS3Partitioner extends MainGraphPartitioner {
         }
     }
 
-    public static void main(String args[]) {
-        try {
-            File initialFile = new File("/Users/ambermadvariya/src/Arabesque/data/citeseer.graph");
-            InputStream targetStream = new FileInputStream(initialFile);
-            BufferedReader reader = new BufferedReader(new InputStreamReader(targetStream));
-            String metadata = reader.readLine();
-            System.out.println(metadata);
-            metadata = reader.readLine();
-            reader.close();
-            System.out.println(metadata);
-        } catch(IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
 }

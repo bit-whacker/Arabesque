@@ -192,6 +192,7 @@ public class TreeBuilding
                 if (currentSearchDataTree == null) {
                     // finished all the work we have locally
                     ThreadOutputHandler.closeThreadOutput(out);
+                    System.out.println("Partition utilization (TB) for partition id:" + partitionId + " is: " + dataGraph.getUtilization());
                     return sendOutliers(partitionId, heavyTrees);
                 }
 

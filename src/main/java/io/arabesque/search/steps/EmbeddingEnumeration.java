@@ -82,6 +82,7 @@ public class EmbeddingEnumeration
             }
 
             ThreadOutputHandler.closeThreadOutput(out);
+            System.out.println("Partition utilization (EE) for partition id:" + partitionId + " is: " + dataGraph.getUtilization());
         }
 
         // TODO we actually don't need to output an RDD. All matches are stored to HDFS.

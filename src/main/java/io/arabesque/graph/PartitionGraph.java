@@ -13,6 +13,7 @@ import org.apache.hadoop.fs.FileSystem;
 
 import javax.annotation.Nonnull;
 import java.io.*;
+import java.util.HashSet;
 
 public class PartitionGraph implements SearchGraph, Externalizable {
     private LRUMap<Integer, UnsafeCSRGraphSearch> graphMap;
@@ -23,6 +24,7 @@ public class PartitionGraph implements SearchGraph, Externalizable {
     private String partitionedPath;
     private AwsS3Utils s3Obj;
     private boolean isBinary;
+    private HashSet<Integer> partitionUtilization;
 
     public PartitionGraph(Configuration config) {
         partitioner = config.getPartitioner();
@@ -35,6 +37,7 @@ public class PartitionGraph implements SearchGraph, Externalizable {
         graphMap = new LRUMap<>(numPartitions);
         s3Obj = new AwsS3Utils();
         isBinary = config.getBoolean(config.IS_BINARY, config.IS_BINARY_DEFAULT);
+        partitionUtilization = new HashSet<>();
     }
 
     private UnsafeCSRGraphSearch readPartitionFromBinary(int partition) throws IOException, ClassNotFoundException {
@@ -103,12 +106,18 @@ public class PartitionGraph implements SearchGraph, Externalizable {
         if(vertexFlag) { partitionId = partitioner.getIdxByVertex(vertexId); }
         else { partitionId = partitioner.getIdxByEdge(vertexId); }
         if(!isPartitionInMemory(partitionId)) {
+            partitionUtilization.add(partitionId);
             long startTime = System.currentTimeMillis();
             readPartition(partitionId);
             long deltaTime = System.currentTimeMillis() - startTime;
             //System.out.println("Partition " + partitionId + " read time: " + deltaTime);
         }
         return partitionId;
+    }
+
+    public double getUtilization() {
+        int numPartitions = partitioner.getNumPartitions();
+        return ((double) partitionUtilization.size() + 1.0/numPartitions);
     }
 
     @Override
